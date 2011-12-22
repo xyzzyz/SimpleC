@@ -30,6 +30,7 @@ data Env = Env {
   typeEnv :: TypeEnv,
   varEnv :: VarEnv,
   funEnv :: FunEnv }
+         deriving Show
 
 emptyEnv = Env {typeEnv = emptyTypeEnv, varEnv = [], funEnv = Map.empty} 
 
@@ -71,6 +72,7 @@ declToType (CTypedefTypeDeclaration name) = do
   case t of
     Just t -> case t of
       CTypedefType _ t -> return t
+      CSelf -> return CSelf
       t -> throwError (TypedefingCompositeType name t)
     Nothing -> throwError (UnknownTypeError name)
     

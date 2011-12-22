@@ -10,4 +10,4 @@ main = getContents >>=
            Left err -> putStrLn .show $ err
            Right res -> case typeCheckTranslationUnit res of
              Left err -> putStrLn . show $ err
-             Right res -> putStrLn "OK")
+             Right res -> putStrLn "OK" >> putStrLn (show res))

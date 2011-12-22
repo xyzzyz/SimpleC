@@ -3,7 +3,7 @@
 !#
 (define (run-test name)
   (display (format #f "~a~%" name))
-  (run (.././Main) (< ,name))
+  (run (../TestParser) (< ,name))
   (display (format #f "~%")))
 
 (define (main arg)

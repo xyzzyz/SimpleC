@@ -1,5 +1,5 @@
 struct list {
-  *int car;
+  int car;
   *list cdr;
 };
 
