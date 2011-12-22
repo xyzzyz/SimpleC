@@ -22,8 +22,6 @@ data CDeclaration = CType CTypeDeclaration
                   | CFunction CType String [(CType, String)] [CStatement]
                   deriving Show
 
-
-
 data CExpression = CString String
                  | CChar Char
                  | CSymbol String
