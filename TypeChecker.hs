@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module TypeChecker where
+module TypeChecker(typeCheckTranslationUnit) where
 import AST
 
 import Control.Monad.State
@@ -30,6 +30,8 @@ data Env = Env {
   typeEnv :: TypeEnv,
   varEnv :: VarEnv,
   funEnv :: FunEnv }
+
+emptyEnv = Env {typeEnv = emptyTypeEnv, varEnv = [], funEnv = Map.empty} 
 
 data TypeError = TypeExistsError String CType
                | UnknownTypeError String
@@ -77,6 +79,7 @@ declToType (CStructDeclaration name) = do
   case t of
     Just t -> case t of
       s@(CStructType _ _) -> return s
+      CSelf -> return CSelf
       t -> throwError (TypedefedStructIsNotStruct name t)
     Nothing -> throwError (UnknownTypeError name)
 
@@ -84,15 +87,30 @@ declToType (CPointerDeclaration decl) = do
   t <- declToType decl
   return $ CPointerType t
 
+structDeftoType name fields = do
+  putType name CSelf
+  (mapM fieldDeclToDef fields) >>= (return . CStructType name )
+  where fieldDeclToDef (decl, varName) = do
+          t <- declToType decl
+          return (t, varName)
+
 typeCheck (CTypedefDefinition decl name) = do
   t <- getType name
   case t of
     Just t -> throwError (TypeExistsError name t)
-    Nothing -> declToType decl >>= putType name
+    Nothing -> declToType decl >>= putType name . CTypedefType name
+    
+typeCheck (CStructDefinition name fields) = do
+  t <- getType name
+  case t of
+    Just t -> throwError (TypeExistsError name t)
+    Nothing -> structDeftoType name fields >>= putType name
   
 typeChecker :: CTranslationUnit -> TypeChecker ()
 typeChecker = mapM_ typeCheck
 
-runParser p s = case runState (runErrorT (runChecker p)) s of
+runTypeChecker p s = case runState (runErrorT (runChecker p)) s of
   (Left err, _) -> Left err
-  (Right r, bs) -> Right (r, bs)
+  (Right r, bs) -> Right bs
+  
+typeCheckTranslationUnit p = runTypeChecker (typeChecker p) emptyEnv 
