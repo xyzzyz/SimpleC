@@ -10,7 +10,7 @@ import Text.ParserCombinators.Parsec.Expr
 
 import AST
                          
-primitiveTypes = ["int", "float", "bool"]
+primitiveTypes = ["void", "int", "float", "bool"]
 keywords = ["if", "while", "for", "else", "while", "for", "return", "struct", "let", "typedef"]
 
 cDef = javaStyle { reservedNames = keywords ++ primitiveTypes}
