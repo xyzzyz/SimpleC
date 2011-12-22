@@ -1,10 +1,8 @@
-module AST(CType(CPrimitiveType, CTypedefType, CStruct, CPointer), 
-           CTypeDeclaration(CTypedefDeclaration, CStructDeclaration), 
-           CDeclaration(CType, CVariable, CFunction), 
-           CExpression(CString, CChar, CSymbol, CInteger, CAssign, CPostIncrement, 
-                       CBinDot, CBinLessThan, CEquals, CBinPlus, CBinMinus, CBinMul, CBinDiv,
-                       CUnPlus, CUnMinus, CCall),
-           CStatement(CBlock, CExpressionStatement, CIfElse, CWhile, CFor, CLet, CReturn)) 
+module AST(CType(..), 
+           CTypeDeclaration(..), 
+           CDeclaration(..), 
+           CExpression(..),
+           CStatement(..)) 
        where
 
 data CType = CPrimitiveType String
