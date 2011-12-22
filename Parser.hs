@@ -10,7 +10,7 @@ import Text.ParserCombinators.Parsec.Expr
 
 import AST
                          
-primitiveTypes = ["void", "int", "float", "bool"]
+primitiveTypes = ["void", "int", "float", "bool", "char"]
 keywords = ["if", "while", "for", "else", "while", "for", "return", "struct", "let", "typedef"]
 
 cDef = javaStyle { reservedNames = keywords ++ primitiveTypes}
@@ -38,11 +38,11 @@ functionCall = do
   args <- parens (commaSep expr)
   return $ CCall n args
 
-term = (fmap CString stringLiteral)
-       <|> (fmap CChar charLiteral)
+term = (fmap CStringLiteral stringLiteral)
+       <|> (fmap CCharLiteral charLiteral)
        <|> try functionCall
        <|> (fmap CSymbol identifier)
-       <|> (fmap CInteger integer)
+       <|> (fmap CIntLiteral integer)
        <|> (parens expr)
        
 

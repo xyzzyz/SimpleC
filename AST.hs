@@ -17,10 +17,10 @@ data CDefinition = CTypedefDefinition CTypeDeclaration String
                  | CFunctionDefinition CTypeDeclaration String [(CTypeDeclaration, String)] [CStatement]
                   deriving Show
 
-data CExpression = CString String
-                 | CChar Char
+data CExpression = CStringLiteral String
+                 | CCharLiteral Char
+                 | CIntLiteral Integer
                  | CSymbol String
-                 | CInteger Integer
                  | CAssign CExpression CExpression
                  | CPostIncrement CExpression
                  | CBinDot CExpression CExpression
