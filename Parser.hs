@@ -29,6 +29,7 @@ data CExpression = CString String
                  | CPostIncrement CExpression
                  | CBinDot CExpression CExpression
                  | CBinLessThan CExpression CExpression
+                 | CEquals CExpression CExpression
                  | CBinPlus CExpression CExpression
                  | CBinMinus CExpression CExpression
                  | CBinMul CExpression CExpression
@@ -88,6 +89,7 @@ table   = [ [binary "." (CBinDot) AssocLeft, postfix "++" CPostIncrement]
           , [binary "*" (CBinMul) AssocLeft, binary "/" (CBinDiv) AssocLeft ]
           , [binary "+" (CBinPlus) AssocLeft, binary "-" (CBinMinus)   AssocLeft ]
           , [binary "<" (CBinLessThan) AssocLeft]
+          , [binary "==" (CEquals) AssocLeft]
           , [binary "=" (CAssign) AssocRight]
           ]
             
@@ -133,7 +135,7 @@ variableDecl = do
 
 letStatement = do
   reserved "let"
-  decls <- parens (sepBy1 variableDecl semi)
+  decls <- parens (endBy1 variableDecl semi)
   body <- statement
   return $ CLet decls body
 
@@ -194,7 +196,7 @@ typedefDecl = do
   name <- identifier
   return $ CTypedefDeclaration t name
   
-structElementsDecl = parens $ structElement `sepBy` semi
+structElementsDecl = braces $ structElement `endBy` semi
   where structElement = do
           t <- cType 
           n <- identifier
@@ -207,13 +209,14 @@ structDecl = do
   return $ CStructDeclaration n elems
 
   
-typeDecl = typedefDecl
-           <|> structDecl
+typeDecl = structDecl
+           <|> typedefDecl
+           <?> "typeDecl"
            
 functionDecl = do
   t <- cType 
   n <- identifier
-  args <- parens (commaSep arg)
+  args <- parens (sepBy arg semi)
   body <- braces (sepBy statement semi)
   return $ CFunction t n args body
   where arg = do
@@ -222,13 +225,13 @@ functionDecl = do
           return (t, n)
           
 globalDecl = (fmap CType typeDecl)
-             <|> functionDecl
+             <|> try functionDecl
              <|> variableDecl
-
+             <?> "globalDecl"
 
 cFile = do
   whitespace
-  decls <- sepBy globalDecl semi
+  decls <- endBy globalDecl semi
   eof
   return decls
   
