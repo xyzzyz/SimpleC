@@ -80,6 +80,10 @@ declToType (CStructDeclaration name) = do
       t -> throwError (TypedefedStructIsNotStruct name t)
     Nothing -> throwError (UnknownTypeError name)
 
+declToType (CPointerDeclaration decl) = do
+  t <- declToType decl
+  return $ CPointerType t
+
 typeCheck (CTypedefDefinition decl name) = do
   t <- getType name
   case t of
