@@ -1,3 +1,5 @@
+module Parser(cFile) where 
+
 import Control.Monad
 
 import Text.ParserCombinators.Parsec
@@ -196,8 +198,3 @@ cFile = do
   return decls
   
 
-main = getContents >>= 
-       (\r -> 
-         case parse cFile "<stdin>" r of
-           Left err -> putStrLn .show $ err
-           Right res -> mapM_ (putStrLn . show) $ res)
