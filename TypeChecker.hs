@@ -41,10 +41,11 @@ type FunEnv = Map.Map String CFunType
 data Env = Env {
   typeEnv :: TypeEnv,
   varEnv :: VarEnv,
-  funEnv :: FunEnv }
+  funEnv :: FunEnv, 
+  curRetType :: CType }
          deriving Show
 
-emptyEnv = Env {typeEnv = emptyTypeEnv, varEnv = [Map.empty], funEnv = Map.empty} 
+emptyEnv = Env {typeEnv = emptyTypeEnv, varEnv = [Map.empty], funEnv = Map.empty, curRetType = CVoid} 
 
 data TypeError = TypeExistsError String CType
                | UnknownTypeError String
@@ -52,6 +53,9 @@ data TypeError = TypeExistsError String CType
                | TypedefingCompositeType String CType
                | TypedefedStructIsNotStruct String CType
                | TypeMismatch CType CType
+               | FunctionExistsError String CFunType
+               | UnexpectedNonvariableDefinition
+               | WrongArgumentCount String
                | OtherTypeError String
                deriving Show
                             
@@ -66,6 +70,7 @@ newtype TypeChecker a = Checker {
 liftChecker m = Checker (lift m)
   
 getEnv = liftChecker get
+putEnv e = liftChecker $ put e
 
 getType name = do
   e <- getEnv 
@@ -73,13 +78,13 @@ getType name = do
     Nothing -> throwError (UnknownTypeError name)
     Just t -> return t
 
+
 ensureTypeDoesNotExist name = do
   e <- getEnv
   case Map.lookup name (typeEnv e) of
     Nothing -> return ()
     Just t -> throwError $ TypeExistsError name t
   
-putEnv e = liftChecker $ put e
 
 putType name t = do
   env <- getEnv
@@ -98,6 +103,39 @@ putVarIntoCurrentVarEnv t name = do
   env <- getEnv
   let (ve:ves) = varEnv env 
   putEnv $ env { varEnv = (Map.insert name t ve):ves }
+  
+pushVarEnv ve = do
+  env <- getEnv
+  putEnv $ env { varEnv = ve : (varEnv env) }
+  
+popVarEnv = do
+  env <- getEnv
+  putEnv $ env { varEnv = tail (varEnv env) }
+
+makeNewVarEnv names types = 
+  foldr (uncurry Map.insert) Map.empty $ zipWith (,) names types
+
+getFunction name = do
+  e <- getEnv
+  case Map.lookup name (funEnv e) of
+    Nothing -> throwError $ UnboundSymbolError name
+    Just t -> return t
+
+ensureFunctionDoesNotExist name = do
+  e <- getEnv
+  case Map.lookup name (funEnv e) of
+    Nothing -> return ()
+    Just t -> throwError $ FunctionExistsError name t
+
+putFunction name t = do
+  env <- getEnv
+  putEnv $ env {funEnv = Map.insert name t (funEnv env) }
+
+getCurRetType = getEnv >>= return . curRetType
+setCurRetType t = do
+  e <- getEnv
+  putEnv $ e { curRetType = t }
+
 
 declToType (CPrimitiveTypeDeclaration "int") = return CInt
 declToType (CPrimitiveTypeDeclaration "float") = return CFloat
@@ -149,6 +187,78 @@ typeCheck (CVariableDefinition decl name (Just expr)) = do
 typeCheck (CVariableDefinition decl name Nothing) = do
   tt <- declToType decl
   putVarIntoCurrentVarEnv tt name
+  
+typeCheck (CFunctionDefinition decl name args body) = do
+  rt <- declToType decl
+  ensureFunctionDoesNotExist name
+  argTypes <- mapM (declToType . fst) args
+  putFunction name (rt, argTypes)
+  let newVarEnv = makeNewVarEnv (map snd args) argTypes
+  pushVarEnv newVarEnv
+  setCurRetType rt
+  mapM_ typeCheckStatement body
+  popVarEnv
+          
+
+ensureVariableDef (CVariableDefinition decl name expr) = do
+  dt <- declToType decl
+  case expr of
+    Nothing -> return ()
+    Just expr -> do 
+      et <- typeCheckExpr expr
+      when (dt /= et) 
+        (throwError $ TypeMismatch et dt) 
+  return (name, dt)
+
+ensureVariableDef _ = throwError $ UnexpectedNonvariableDefinition
+
+typeCheckStatement (CBlock stmts) = mapM_ typeCheckStatement stmts
+typeCheckStatement (CExpressionStatement e) = do
+  typeCheckExpr e
+  return ()
+  
+typeCheckStatement (CIfElse cond thn els) = do
+  t <- typeCheckExpr cond
+  when (t /= CBool)
+    (throwError $ TypeMismatch t CBool)
+  typeCheckStatement thn
+  case els of
+    Nothing -> return ()
+    Just els -> typeCheckStatement els
+
+typeCheckStatement (CWhile cond body) = do
+  t <- typeCheckExpr cond
+  when (t /= CBool)
+    (throwError $ TypeMismatch t CBool)
+  typeCheckStatement body
+
+typeCheckStatement (CFor (init, cond, after) body) = do
+  case init of
+    Nothing -> return ()
+    Just init -> typeCheckExpr init >> return ()
+  case after of 
+    Nothing -> return ()
+    Just after -> typeCheckExpr after >> return ()
+  case cond of
+    Nothing -> return ()
+    Just cond -> do 
+      t <- typeCheckExpr cond
+      when (t /= CBool)
+        (throwError $ TypeMismatch t CBool)
+      typeCheckStatement body
+
+typeCheckStatement (CLet defs body) = do
+  defs <- mapM ensureVariableDef defs
+  let newVarEnv = uncurry makeNewVarEnv $ unzip defs
+  pushVarEnv newVarEnv
+  typeCheckStatement body
+  popVarEnv
+  
+typeCheckStatement (CReturn e) = do
+  t <- typeCheckExpr e
+  curRet <- getCurRetType
+  when (t /= curRet)
+    (throwError $ TypeMismatch t curRet)
 
 checkLValue (CSymbol _) = return True
 
@@ -163,6 +273,7 @@ typeCheckExpr (CAssign lhs rhs) = do
   if lt /= rt
     then throwError $ TypeMismatch lt rt
     else return rt
+
 typeCheckExpr (CPostIncrement t) = typeCheckExpr t
 typeCheckExpr (CBinDot s f) = undefined -- TODO
 typeCheckExpr (CBinLessThan e1 e2) = typeCheckBinRelExpr e1 e2 
@@ -173,7 +284,18 @@ typeCheckExpr (CBinMul e1 e2) = typeCheckBinOpExpr e1 e2
 typeCheckExpr (CBinDiv e1 e2) = typeCheckBinOpExpr e1 e2
 typeCheckExpr (CUnPlus e) = typeCheckUnaryNum e
 typeCheckExpr (CUnMinus e) = typeCheckUnaryNum e
-typeCheckExpr (CCall name args) = undefined
+typeCheckExpr (CCall name args) = do
+  (retType, argTypes) <- getFunction name
+  ts <- mapM typeCheckExpr args
+  checkArgTypes argTypes ts
+  return retType
+  where checkArgTypes [] [] = return ()
+        checkArgTypes [] (_:_) = throwError $ WrongArgumentCount name
+        checkArgTypes (_:_) [] = throwError $ WrongArgumentCount name
+        checkArgTypes (a:as) (t:ts) = do
+          if a /= t 
+            then throwError $ TypeMismatch t a
+            else checkArgTypes as ts
 
 typeCheckUnaryNum e = do
   t <- typeCheckExpr e
