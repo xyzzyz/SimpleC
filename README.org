@@ -1,0 +1,6 @@
+* SimpleC compiler
+** Description
+   This is (or rather will be) a compiler for a simple C-like
+   language. 
+** Author
+   Adam Michalik <adam@michalik.es>
