@@ -68,36 +68,36 @@ reservedKeyword name = do
   reserved name
   return name
   
-simpleType = (fmap CPrimitiveType (choice $ map reservedKeyword primitiveTypes))
-           <|> (fmap CTypedefType identifier)
+simpleType = (fmap CPrimitiveTypeDeclaration (choice $ map reservedKeyword primitiveTypes))
+           <|> (fmap CTypedefTypeDeclaration identifier)
        
 pointerType = do
   reservedOp "*"
   t <- cType
-  return $ CPointer t
+  return $ CPointerDeclaration t
   
   
 structType = do
   reserved "struct"
   name <- identifier
-  return $ CStruct name 
+  return $ CStructDeclaration name 
   
 cType = pointerType
         <|> simpleType 
         <|> structType
   
-variableDecl = do
+variableDef = do
   t <- cType 
   n <- identifier
   e <- optionMaybe init
-  return $ CVariable t n e
+  return $ CVariableDefinition t n e
   where init = do
           reservedOp "="
           expr
 
 letStatement = do
   reserved "let"
-  decls <- parens (endBy1 variableDecl semi)
+  decls <- parens (endBy1 variableDef semi)
   body <- statement
   return $ CLet decls body
 
@@ -152,11 +152,11 @@ statement = blockStatement
             <|> letStatement
             <|> returnStatement
 
-typedefDecl = do
+typedefDef = do
   reserved "typedef"
   t <- cType
   name <- identifier
-  return $ CTypedefDeclaration t name
+  return $ CTypedefDefinition t name
   
 structElementsDecl = braces $ structElement `endBy` semi
   where structElement = do
@@ -164,36 +164,36 @@ structElementsDecl = braces $ structElement `endBy` semi
           n <- identifier
           return (t, n)
 
-structDecl = do
+structDef = do
   reserved "struct"
   n <- identifier
   elems <- structElementsDecl
-  return $ CStructDeclaration n elems
+  return $ CStructDefinition n elems
 
   
-typeDecl = structDecl
-           <|> typedefDecl
-           <?> "typeDecl"
+typeDef = structDef
+          <|> typedefDef
+          <?> "typeDef"
            
-functionDecl = do
+functionDef = do
   t <- cType 
   n <- identifier
   args <- parens (sepBy arg semi)
   body <- braces (sepBy statement semi)
-  return $ CFunction t n args body
+  return $ CFunctionDefinition t n args body
   where arg = do
           t <- cType
           n <- identifier
           return (t, n)
           
-globalDecl = (fmap CType typeDecl)
-             <|> try functionDecl
-             <|> variableDecl
-             <?> "globalDecl"
+globalDef = typeDef
+            <|> try functionDef
+            <|> variableDef
+            <?> "globalDef"
 
 cFile = do
   whitespace
-  decls <- endBy globalDecl semi
+  decls <- endBy globalDef semi
   eof
   return decls
   

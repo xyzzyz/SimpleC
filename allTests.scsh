@@ -1,0 +1,12 @@
+#!/usr/bin/scsh \
+-e main -s
+!#
+(define (run-test name)
+  (display (format #f "~a~%" name))
+  (run (.././Main) (< ,name))
+  (display (format #f "~%")))
+
+(define (main arg)
+  (with-cwd "tests/"
+            (for-each run-test (directory-files))))
+
