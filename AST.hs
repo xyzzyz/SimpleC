@@ -1,23 +1,20 @@
-module AST(CType(..), 
-           CTypeDeclaration(..), 
-           CDeclaration(..), 
+module AST(CTypeDeclaration(..), 
+           CDefinition(..), 
            CExpression(..),
-           CStatement(..)) 
+           CStatement(..),
+           CTranslationUnit) 
        where
 
-data CType = CPrimitiveType String
-           | CTypedefType String 
-           | CStruct String
-           | CPointer CType
-           deriving Show
-
-data CTypeDeclaration = CTypedefDeclaration CType String
-                      | CStructDeclaration String [(CType, String)]
+data CTypeDeclaration = CPrimitiveTypeDeclaration String
+                      | CTypedefTypeDeclaration String 
+                      | CStructDeclaration String
+                      | CPointerDeclaration CTypeDeclaration
                       deriving Show
 
-data CDeclaration = CType CTypeDeclaration
-                  | CVariable CType String (Maybe CExpression)
-                  | CFunction CType String [(CType, String)] [CStatement]
+data CDefinition = CTypedefDefinition CTypeDeclaration String
+                 | CStructDefinition String [(CTypeDeclaration, String)]
+                 | CVariableDefinition CTypeDeclaration String (Maybe CExpression)
+                 | CFunctionDefinition CTypeDeclaration String [(CTypeDeclaration, String)] [CStatement]
                   deriving Show
 
 data CExpression = CString String
@@ -43,6 +40,8 @@ data CStatement = CBlock [CStatement]
                 | CIfElse CExpression CStatement (Maybe CStatement)
                 | CWhile CExpression CStatement
                 | CFor (Maybe CExpression, Maybe CExpression, Maybe CExpression) CStatement
-                | CLet [CDeclaration] CStatement
+                | CLet [CDefinition] CStatement
                 | CReturn CExpression
                 deriving Show
+
+type CTranslationUnit = [CDefinition]

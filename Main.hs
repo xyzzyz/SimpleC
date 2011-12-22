@@ -2,6 +2,8 @@ module Main where
 
 import Text.ParserCombinators.Parsec
 import Parser
+import TypeChecker
+
 main = getContents >>= 
        (\r -> 
          case parse cFile "<stdin>" r of
