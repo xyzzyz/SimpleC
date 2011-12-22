@@ -53,8 +53,18 @@ liftChecker m = Checker (lift m)
   
 getEnv = liftChecker get
 
-getType name = getEnv >>= return . typeEnv >>= return . Map.lookup name
+getType name = do
+  e <- getEnv 
+  case Map.lookup name (typeEnv e) of
+    Nothing -> throwError (UnknownTypeError name)
+    Just t -> return t
 
+ensureTypeDoesNotExist name = do
+  e <- getEnv
+  case Map.lookup name (typeEnv e) of
+    Nothing -> return ()
+    Just t -> throwError $ TypeExistsError name t
+  
 putEnv e = liftChecker $ put e
 
 putType name t = do
@@ -70,20 +80,16 @@ declToType (CPrimitiveTypeDeclaration "void") = return CVoid
 declToType (CTypedefTypeDeclaration name) = do
   t <- getType name
   case t of
-    Just t -> case t of
-      CTypedefType _ t -> return t
-      CSelf -> return CSelf
-      t -> throwError (TypedefingCompositeType name t)
-    Nothing -> throwError (UnknownTypeError name)
+    CTypedefType _ t -> return t
+    CSelf -> return CSelf
+    t -> throwError (TypedefingCompositeType name t)
     
 declToType (CStructDeclaration name) = do
   t <- getType name
   case t of
-    Just t -> case t of
-      s@(CStructType _ _) -> return s
-      CSelf -> return CSelf
-      t -> throwError (TypedefedStructIsNotStruct name t)
-    Nothing -> throwError (UnknownTypeError name)
+    s@(CStructType _ _) -> return s
+    CSelf -> return CSelf
+    t -> throwError (TypedefedStructIsNotStruct name t)
 
 declToType (CPointerDeclaration decl) = do
   t <- declToType decl
@@ -97,16 +103,12 @@ structDeftoType name fields = do
           return (t, varName)
 
 typeCheck (CTypedefDefinition decl name) = do
-  t <- getType name
-  case t of
-    Just t -> throwError (TypeExistsError name t)
-    Nothing -> declToType decl >>= putType name . CTypedefType name
+  ensureTypeDoesNotExist name
+  declToType decl >>= putType name . CTypedefType name
     
 typeCheck (CStructDefinition name fields) = do
-  t <- getType name
-  case t of
-    Just t -> throwError (TypeExistsError name t)
-    Nothing -> structDeftoType name fields >>= putType name
+  ensureTypeDoesNotExist name
+  structDeftoType name fields >>= putType name
   
 typeChecker :: CTranslationUnit -> TypeChecker ()
 typeChecker = mapM_ typeCheck

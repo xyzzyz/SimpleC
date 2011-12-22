@@ -1,12 +1,19 @@
 #!/usr/bin/scsh \
 -e main -s
 !#
-(define (run-test name)
+(define (run-parser-test name)
   (display (format #f "~a~%" name))
   (run (../TestParser) (< ,name))
   (display (format #f "~%")))
 
+(define (run-type-checker-test name)
+  (display (format #f "~a~%" name))
+  (run (../TestTypeChecker) (< ,name))
+  (display (format #f "~%")))
+
 (define (main arg)
   (with-cwd "tests/"
-            (for-each run-test (directory-files))))
+            (for-each run-parser-test (directory-files)))
+  (with-cwd "tests/"
+            (for-each run-type-checker-test (directory-files))))
 
