@@ -2,7 +2,7 @@ module IR(CType(..),
           IRExpression(..),
           IRDefinition(..),
           IRStatement(..),
-          IRProgram,
+          IRTrlanslationUnit,
           cTypeOf,
           countLocals) where
 
@@ -60,7 +60,7 @@ cTypeOf (IRUnMinus t _) = t
 cTypeOf (IRCall t _ _) = t
 
 data IRDefinition = IRVariableDefinition CType String (Maybe IRExpression)
-                  | IRFunctionDefinition CType String [(CType, String)] Int [IRStatement] 
+                  | IRFunctionDefinition CType String [(CType, String)] [IRStatement] 
                   deriving Show
                            
 data IRStatement = IRBlock [IRStatement]
@@ -80,4 +80,4 @@ countLocals (IRIfElse _ t (Just e)) = countLocals t + countLocals e
 countLocals (IRWhile _ b) = countLocals b
 countLocals _ = 0
 
-type IRProgram = [IRDefinition]
+type IRTrlanslationUnit = [IRDefinition]

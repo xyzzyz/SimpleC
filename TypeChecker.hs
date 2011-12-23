@@ -1,5 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module TypeChecker(typeCheckTranslationUnit) where
+module TypeChecker(CFunType, 
+                   TypeEnv,
+                   VarEnv,
+                   FunEnv,
+                   Env,
+                   typeCheckTranslationUnit) where
 import AST
 import IR
 import Control.Monad.State
@@ -184,7 +189,7 @@ typeCheck (CFunctionDefinition decl name args body) = do
   setCurRetType rt
   stmts <- mapM typeCheckStatement body
   popVarEnv
-  return $ Just (IRFunctionDefinition rt name (zipWith makeArg argTypes args) (length args + countLocals (IRBlock stmts)) stmts)
+  return $ Just (IRFunctionDefinition rt name (zipWith makeArg argTypes args) stmts)
   where makeArg t (_, n) = (t, n)
           
 
@@ -320,6 +325,7 @@ typeCheckBinOpExpr e1 e2 cons = do
          then throwError $ TypeMismatch (cTypeOf rt) (cTypeOf lt)
          else return $ cons (cTypeOf lt) lt rt
 
+typeChecker :: CTranslationUnit -> TypeChecker IRTrlanslationUnit
 typeChecker p = mapM typeCheck p >>= return . catMaybes
 
 runTypeChecker p s = case runState (runErrorT (runChecker p)) s of
