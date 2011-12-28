@@ -14,7 +14,7 @@ data CTypeDeclaration = CPrimitiveTypeDeclaration String
 data CDefinition = CTypedefDefinition CTypeDeclaration String
                  | CStructDefinition String [(CTypeDeclaration, String)]
                  | CVariableDefinition CTypeDeclaration String (Maybe CExpression)
-                 | CFunctionDefinition CTypeDeclaration String [(CTypeDeclaration, String)] [CStatement]
+                 | CFunctionDefinition CTypeDeclaration String [(CTypeDeclaration, String)] CStatement
                   deriving Show
 
 data CExpression = CStringLiteral String

@@ -15,10 +15,10 @@ import TypeChecker
 data AssemblyType = AInt | AFloat | AVoid | AChar | AReference String
 
 instance Show AssemblyType where
-  show AInt = "I"
-  show AFloat = "F"
+  show AInt = "LCInt;"
+  show AFloat = "LCFloat;"
   show AVoid = "V"
-  show AChar = "C"
+  show AChar = "LCInt;"
   show (AReference s) = "L" ++ s ++ ";"
 
 cTypeToAType CInt = AInt
@@ -33,32 +33,49 @@ aTypeToRef AFloat = "CFloat"
 aTypeToRef AChar = "CChar"
 aTypeToRef (AReference _) = "CPointer"
 
+aTypeToInstrPrefix AInt = "i"
+aTypeToInstrPrefix AFloat = "f"
+aTypeToInstrPrefix AChar = "i"
+aTypeToInstrPrefix (AReference _) = "a"
+
 data AssemblyInstruction = AProgram String 
-                         | AFunction AssemblyType String  
+                         | AFunction AssemblyType String [AssemblyType]
                          | AEndFunction
                          | ALimitStack Int
                          | ALimitLocals Int
+                         | ANew AssemblyType
                          | AIntPush Integer
-                         | AALoad
+                         | ADup
+                         | AALoad Int
                          | AGetField AssemblyType String
                          | APutField AssemblyType String
                          | AAdd AssemblyType
+                         | AReturn AssemblyType
                          | ALOL
 
 instance Show AssemblyInstruction where
   show (AProgram c) = ".class public " ++ c ++ "\n"
-                      ++ ".super java/lang/Object"
-  show (AFunction t n) = ".method public static " ++ n 
-                         ++ "()" ++ show t
+                      ++ ".super java/lang/Object\n" 
+                      ++ ".method public <init>()V\n"
+                      ++ "aload_0\n"
+                      ++ "invokenonvirtual java/lang/Object/<init>()V\n"
+                      ++ "return\n"
+                      ++ ".end method\n"
+
+  show (AFunction t n as) = ".method public static " ++ n 
+                         ++ "(" ++ concatMap show as ++ ")" ++ show t
   show AEndFunction = ".end method"
   show (ALimitStack n) = ".limit stack " ++ show n
   show (ALimitLocals n) = ".limit locals " ++ show n
+  show (ANew t) = "new " ++ aTypeToRef t
   show (AIntPush n) = "ldc " ++ show n 
-  show AALoad = "aload"
+  show ADup = "dup"
+  show (AALoad n) = "aload " ++ show n
   show (AGetField t n) = "getfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ show t
   show (APutField t n) = "putfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ show t
-  show (AAdd AInt) = "iadd"
-  show (AAdd AFloat) = "fadd"
+  show (AAdd t) = aTypeToInstrPrefix t ++ "add"
+  show (AReturn AVoid) = "return"
+  show (AReturn _) = "areturn"
   show ALOL = "LOL"
 
 type Assembly = [AssemblyInstruction]
@@ -104,18 +121,16 @@ countStackStmt (IRReturn e) = countStackExpr e
 generateExpr (IRIntLiteral n) = emit $ AIntPush n
 generateExpr (IRVariable t name) = do
   loc <- getVarStore name
-  emit $ AIntPush (fromIntegral loc)
-  emit $ AALoad
+  emit $ AALoad loc
   emit $ AGetField (cTypeToAType t) "c"
   
 generateExpr (IRAssign t e1 e2) = do
   let (IRVariable _ name) = e1
   loc <- getVarStore name
-  emit $ AIntPush (fromIntegral loc)
-  emit $ AALoad 
+  emit $ AALoad loc
   generateExpr e2
   emit $ APutField (cTypeToAType t) "c"
-  
+
 generateExpr (IRBinPlus t e1 e2) = do
   generateExpr e1
   generateExpr e2
@@ -126,7 +141,17 @@ generateExpr _ = return ()
 
 generateStmt (IRBlock ss) = mapM_ generateStmt ss
 generateStmt (IRExpressionStatement e) = generateExpr e
+generateStmt (IRReturn e) = do
+  let t = cTypeOf e
+      a = cTypeToAType t
+  emit $ ANew a
+  emit $ ADup
+  generateExpr e
+  emit $ APutField a "c"
+  emit $ AReturn (cTypeToAType t)
+  
 generateStmt _ = return ()
+
 
 pushArgsDef args = do
   e <- get
@@ -140,7 +165,7 @@ popArgsDef oldE = do
   put $ e { nextLocalVar = nextLocalVar oldE, localVars = localVars oldE }
 
 generateDef (IRFunctionDefinition t name args body) = do
-  emit $ AFunction (cTypeToAType t) name
+  emit $ AFunction (cTypeToAType t) name (map (cTypeToAType . fst) args)
   emit $ ALimitLocals (countLocals (IRBlock body))
   emit $ ALimitStack (countStackStmt (IRBlock body))
   oldE <- pushArgsDef args

@@ -13,6 +13,5 @@ main = do
     Right res -> case typeCheckTranslationUnit res of
       Left err -> putStrLn . show $ err
       Right (ir, env) -> do
-        putStrLn "OK" 
         let as = generateAssembly "Test" ir env
         putStrLn . showAssembly $ as

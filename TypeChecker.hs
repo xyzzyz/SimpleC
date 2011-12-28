@@ -179,7 +179,7 @@ typeCheck (CVariableDefinition decl name Nothing) = do
   putVarIntoCurrentVarEnv tt name
   return $ Just (IRVariableDefinition tt name Nothing)
   
-typeCheck (CFunctionDefinition decl name args body) = do
+typeCheck (CFunctionDefinition decl name args (CBlock body)) = do
   rt <- declToType decl
   ensureFunctionDoesNotExist name
   argTypes <- mapM (declToType . fst) args
@@ -278,7 +278,7 @@ typeCheckExpr (CAssign lhs rhs) = do
 typeCheckExpr (CPostIncrement t) = do 
   checkLValue t 
   t' <- typeCheckExpr t
-  return $ IRPostIncrement (cTypeOf t') t'
+  return $ IRAssign (cTypeOf t') t' (IRBinPlus (cTypeOf t') t' (IRIntLiteral 1))
 
 typeCheckExpr (CBinDot s f) = undefined -- TODO
 typeCheckExpr (CBinLessThan e1 e2) = typeCheckBinRelExpr e1 e2 IRBinLessThan

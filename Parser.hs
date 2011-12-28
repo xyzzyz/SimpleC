@@ -179,7 +179,7 @@ functionDef = do
   t <- cType 
   n <- identifier
   args <- parens (sepBy arg semi)
-  body <- braces (sepBy statement semi)
+  body <- blockStatement
   return $ CFunctionDefinition t n args body
   where arg = do
           t <- cType

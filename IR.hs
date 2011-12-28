@@ -59,7 +59,7 @@ cTypeOf (IRUnMinus t _) = t
 cTypeOf (IRCall t _ _) = t
 
 data IRDefinition = IRVariableDefinition CType String (Maybe IRExpression)
-                  | IRFunctionDefinition CType String [(CType, String)] [IRStatement] 
+                  | IRFunctionDefinition CType String [(CType, String)] [IRStatement]
                   deriving Show
                            
 data IRStatement = IRBlock [IRStatement]
