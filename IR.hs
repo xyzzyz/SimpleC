@@ -3,8 +3,7 @@ module IR(CType(..),
           IRDefinition(..),
           IRStatement(..),
           IRTrlanslationUnit,
-          cTypeOf,
-          countLocals) where
+          cTypeOf) where
 
 data CType = CInt | CFloat | CBool | CVoid | CChar
            | CSelf -- used in recursive structures
@@ -71,13 +70,5 @@ data IRStatement = IRBlock [IRStatement]
                  | IRSkip
                  | IRReturn IRExpression
                  deriving Show
-
-
-countLocals (IRBlock ss) = foldr (+) 0 $ map countLocals ss
-countLocals (IRLet l s) = (length l) + countLocals s
-countLocals (IRIfElse _ t Nothing) = countLocals t
-countLocals (IRIfElse _ t (Just e)) = countLocals t + countLocals e
-countLocals (IRWhile _ b) = countLocals b
-countLocals _ = 0
 
 type IRTrlanslationUnit = [IRDefinition]

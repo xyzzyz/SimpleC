@@ -261,6 +261,7 @@ typeCheckStatement (CReturn e) = do
   return $ IRReturn t
 
 checkLValue (CSymbol _) = return True
+--checkLValue (CPointer t) = checkLValue t
 
 typeCheckExpr (CStringLiteral s) = return $ IRStringLiteral s
 typeCheckExpr (CCharLiteral c) = return $ IRCharLiteral c

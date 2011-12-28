@@ -14,5 +14,5 @@ main = do
       Left err -> putStrLn . show $ err
       Right (ir, env) -> do
         putStrLn "OK" 
-        let as = generateAssembly ir env
-        putStrLn . show $ as
+        let as = generateAssembly "Test" ir env
+        putStrLn . showAssembly $ as
