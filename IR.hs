@@ -31,7 +31,11 @@ data IRExpression = IRStringLiteral String
                   | IRPostIncrement CType IRExpression
                   | IRBinDot CType IRExpression IRExpression
                   | IRBinLessThan IRExpression IRExpression
+                  | IRBinGreaterThan IRExpression IRExpression
+                  | IRBinLessEquals IRExpression IRExpression
+                  | IRBinGreaterEquals IRExpression IRExpression
                   | IREquals IRExpression IRExpression
+                  | IRNotEquals IRExpression IRExpression
                   | IRBinPlus CType IRExpression IRExpression
                   | IRBinMinus CType IRExpression IRExpression
                   | IRBinMul CType IRExpression IRExpression
@@ -41,22 +45,26 @@ data IRExpression = IRStringLiteral String
                   | IRCall CType String [IRExpression]
                   deriving (Show)
 
-cTypeOf (IRStringLiteral _) = CPointerType CChar
-cTypeOf (IRCharLiteral _) = CChar
-cTypeOf (IRIntLiteral _) = CInt
-cTypeOf (IRVariable t _) = t
-cTypeOf (IRAssign t _ _) = t
-cTypeOf (IRPostIncrement t _) = t
-cTypeOf (IRBinDot t _ _) = t
-cTypeOf (IRBinLessThan _ _) = CBool
-cTypeOf (IREquals _ _) = CBool
-cTypeOf (IRBinPlus t _ _) = t
-cTypeOf (IRBinMinus t _ _) = t
-cTypeOf (IRBinMul t _ _) = t
-cTypeOf (IRBinDiv t _ _) = t
-cTypeOf (IRUnPlus t _) = t
-cTypeOf (IRUnMinus t _) = t
-cTypeOf (IRCall t _ _) = t
+cTypeOf (IRStringLiteral _)      = CPointerType CChar
+cTypeOf (IRCharLiteral _)        = CChar
+cTypeOf (IRIntLiteral _)         = CInt
+cTypeOf (IRVariable t _)         = t
+cTypeOf (IRAssign t _ _)         = t
+cTypeOf (IRPostIncrement t _)    = t
+cTypeOf (IRBinDot t _ _)         = t
+cTypeOf (IRBinLessThan _ _)      = CBool
+cTypeOf (IRBinGreaterThan _ _)   = CBool
+cTypeOf (IRBinLessEquals _ _)    = CBool
+cTypeOf (IRBinGreaterEquals _ _) = CBool
+cTypeOf (IREquals _ _)           = CBool
+cTypeOf (IRNotEquals _ _)        = CBool
+cTypeOf (IRBinPlus t _ _)        = t
+cTypeOf (IRBinMinus t _ _)       = t
+cTypeOf (IRBinMul t _ _)         = t
+cTypeOf (IRBinDiv t _ _)         = t
+cTypeOf (IRUnPlus t _)           = t
+cTypeOf (IRUnMinus t _)          = t
+cTypeOf (IRCall t _ _)           = t
 
 data IRDefinition = IRVariableDefinition CType String (Maybe IRExpression)
                   | IRFunctionDefinition CType String [(CType, String)] [IRStatement]

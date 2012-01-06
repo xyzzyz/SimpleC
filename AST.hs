@@ -25,7 +25,11 @@ data CExpression = CStringLiteral String
                  | CPostIncrement CExpression
                  | CBinDot CExpression CExpression
                  | CBinLessThan CExpression CExpression
+                 | CBinGreaterThan CExpression CExpression
+                 | CBinLessEqual CExpression CExpression
+                 | CBinGreaterEqual CExpression CExpression
                  | CEquals CExpression CExpression
+                 | CNotEquals CExpression CExpression
                  | CBinPlus CExpression CExpression
                  | CBinMinus CExpression CExpression
                  | CBinMul CExpression CExpression

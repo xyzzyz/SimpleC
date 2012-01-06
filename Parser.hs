@@ -50,8 +50,9 @@ table   = [ [binary "." (CBinDot) AssocLeft, postfix "++" CPostIncrement]
           , [prefix "-" CUnMinus, prefix "+" CUnPlus ]
           , [binary "*" (CBinMul) AssocLeft, binary "/" (CBinDiv) AssocLeft ]
           , [binary "+" (CBinPlus) AssocLeft, binary "-" (CBinMinus)   AssocLeft ]
-          , [binary "<" (CBinLessThan) AssocLeft]
-          , [binary "==" (CEquals) AssocLeft]
+          , [binary "<" (CBinLessThan) AssocLeft, binary ">" (CBinGreaterThan) AssocLeft,
+             binary "<=" (CBinLessEqual) AssocLeft, binary ">=" (CBinGreaterEqual) AssocLeft]
+          , [binary "==" (CEquals) AssocLeft, binary "!=" (CNotEquals) AssocLeft]
           , [binary "=" (CAssign) AssocRight]
           ]
             

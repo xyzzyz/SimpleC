@@ -282,13 +282,27 @@ typeCheckExpr (CPostIncrement t) = do
 
 typeCheckExpr (CBinDot s f) = undefined -- TODO
 typeCheckExpr (CBinLessThan e1 e2) = typeCheckBinRelExpr e1 e2 IRBinLessThan
+typeCheckExpr (CBinGreaterThan e1 e2) = typeCheckBinRelExpr e1 e2 IRBinGreaterThan
+typeCheckExpr (CBinLessEqual e1 e2) = typeCheckBinRelExpr e1 e2 IRBinLessEquals
+typeCheckExpr (CBinGreaterEqual e1 e2) = typeCheckBinRelExpr e1 e2 IRBinGreaterEquals
 typeCheckExpr (CEquals e1 e2) = typeCheckBinRelExpr e1 e2 IREquals
+typeCheckExpr (CNotEquals e1 e2) = typeCheckBinRelExpr e1 e2 IRNotEquals
 typeCheckExpr (CBinPlus e1 e2) = typeCheckBinOpExpr e1 e2 IRBinPlus
 typeCheckExpr (CBinMinus e1 e2) = typeCheckBinOpExpr e1 e2 IRBinMinus
 typeCheckExpr (CBinMul e1 e2) = typeCheckBinOpExpr e1 e2 IRBinMul
 typeCheckExpr (CBinDiv e1 e2) = typeCheckBinOpExpr e1 e2 IRBinDiv
-typeCheckExpr (CUnPlus e) = typeCheckUnaryNum e IRUnPlus
-typeCheckExpr (CUnMinus e) = typeCheckUnaryNum e IRUnMinus
+typeCheckExpr (CUnPlus e) = do  
+  t <- typeCheckExpr e
+  if cTypeOf t /= CInt && cTypeOf t /= CFloat 
+    then throwError $ TypeMismatch (cTypeOf t) CInt
+    else return t
+
+typeCheckExpr (CUnMinus e) = do 
+  t <- typeCheckExpr e
+  if cTypeOf t /= CInt && cTypeOf t /= CFloat 
+    then throwError $ TypeMismatch (cTypeOf t) CInt
+    else return $ IRUnMinus (cTypeOf t) t
+
 typeCheckExpr (CCall name args) = do
   (retType, argTypes) <- getFunction name
   ts <- mapM typeCheckExpr args
@@ -302,11 +316,6 @@ typeCheckExpr (CCall name args) = do
             then throwError $ TypeMismatch t a
             else checkArgTypes as ts
 
-typeCheckUnaryNum e cons= do
-  t <- typeCheckExpr e
-  if cTypeOf t /= CInt && cTypeOf t /= CFloat 
-    then throwError $ TypeMismatch (cTypeOf t) CInt
-    else return t
 
 typeCheckBinRelExpr e1 e2 cons = do   
   lt <- typeCheckExpr e1
