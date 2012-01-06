@@ -13,15 +13,15 @@ data CType = CInt | CFloat | CBool | CVoid | CChar
            deriving Show
                     
 instance Eq CType where
-  CInt == CInt = True
-  CFloat == CFloat = True
-  CBool == CBool = True
-  CChar == CChar = True
-  CSelf == CSelf = True
-  (CTypedefType _ t1) == (CTypedefType _ t2) = t1 == t2
-  (CStructType _ t1) == (CStructType _ t2) = t1 == t2
-  (CPointerType t1) == (CPointerType t2) = t1 == t2
-  _ == _ = False
+  CInt == CInt                                = True
+  CFloat == CFloat                            = True
+  CBool == CBool                              = True
+  CChar == CChar                              = True
+  CSelf == CSelf                              = True
+  (CTypedefType _ t1) == (CTypedefType _ t2)  = t1 == t2
+  (CStructType _ t1) == (CStructType _ t2)    = t1 == t2
+  (CPointerType t1) == (CPointerType t2)      = t1 == t2
+  _ == _                                      = False
 
 data IRExpression = IRStringLiteral String
                   | IRCharLiteral Char   

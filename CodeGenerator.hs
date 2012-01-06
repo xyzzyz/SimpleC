@@ -21,33 +21,33 @@ data AssemblyType = AInt
                   | AReference String 
 
 instance Show AssemblyType where
-  show AInt = "LCInt;"
-  show AFloat = "LCFloat;"
-  show AVoid = "V"
-  show AChar = "LCInt;"
+  show AInt           = "LCInt;"
+  show AFloat         = "LCFloat;"
+  show AVoid          = "V"
+  show AChar          = "LCInt;"
   show (AReference s) = "L" ++ s ++ ";"
 
 
-cTypeToAType CInt = AInt
-cTypeToAType CFloat = AFloat
-cTypeToAType CVoid = AVoid
-cTypeToAType CChar = AChar
+cTypeToAType CInt               = AInt
+cTypeToAType CFloat             = AFloat
+cTypeToAType CVoid              = AVoid
+cTypeToAType CChar              = AChar
 cTypeToAType (CTypedefType _ t) = cTypeToAType t
-cTypeToAType (CPointerType t) = AReference "CPointer"
+cTypeToAType (CPointerType t)   = AReference "CPointer"
 
 
-aTypeToRef AInt = "CInt"
-aTypeToRef AFloat = "CFloat"
-aTypeToRef AChar = "CChar"
+aTypeToRef AInt           = "CInt"
+aTypeToRef AFloat         = "CFloat"
+aTypeToRef AChar          = "CChar"
 aTypeToRef (AReference _) = "CPointer"
 
-aTypeToUnboxedType AInt = "I"
+aTypeToUnboxedType AInt   = "I"
 aTypeToUnboxedType AFloat = "F"
 
 
-aTypeToInstrPrefix AInt = "i"
-aTypeToInstrPrefix AFloat = "f"
-aTypeToInstrPrefix AChar = "i"
+aTypeToInstrPrefix AInt           = "i"
+aTypeToInstrPrefix AFloat         = "f"
+aTypeToInstrPrefix AChar          = "i"
 aTypeToInstrPrefix (AReference _) = "a"
 
 data BinRel = LT | GT | LE | GE | EQ | NE
@@ -82,54 +82,54 @@ data AssemblyInstruction = AProgram String
                          | ALOL
 
 instance Show AssemblyInstruction where
-  show (AProgram c) = ".class public " ++ c ++ "\n"
-                      ++ ".super java/lang/Object\n" 
-                      ++ ".method public <init>()V\n"
-                      ++ "aload_0\n"
-                      ++ "invokenonvirtual java/lang/Object/<init>()V\n"
-                      ++ "return\n"
-                      ++ ".end method\n"
+  show (AProgram c)                      = ".class public " ++ c ++ "\n"
+                                           ++ ".super java/lang/Object\n" 
+                                           ++ ".method public <init>()V\n"
+                                           ++ "aload_0\n"
+                                           ++ "invokenonvirtual java/lang/Object/<init>()V\n"
+                                           ++ "return\n"
+                                           ++ ".end method\n"
 
-  show (AFunction t n as) = ".method public static " ++ n 
-                         ++ "(" ++ concatMap show as ++ ")" ++ show t
-  show AEndFunction = ".end method"
-  show (ALimitStack n) = ".limit stack " ++ show n
-  show (ALimitLocals n) = ".limit locals " ++ show n
-  show (ANew t) = "new " ++ aTypeToRef t ++ "\n"
-                  ++ "dup\n"
-                  ++ "invokenonvirtual " ++ aTypeToRef t ++ "/<init>()V"
-  show (AIntPush n) = "ldc " ++ show n 
-  show (AConst t n) = aTypeToInstrPrefix t ++ "const_" ++ show n
-  show ADup = "dup"
-  show ASwap = "swap"
-  show APop = "pop"
-  show (ALabel s) = s ++ ":"
-  show (AGoto s) = "goto " ++ s
-  show (AALoad n) = "aload " ++ show n
-  show (AAStore n) = "astore " ++ show n
-  show (AGetField t n) = "getfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ aTypeToUnboxedType t
-  show (APutField t n) = "putfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ aTypeToUnboxedType t
-  show (AAdd t) = aTypeToInstrPrefix t ++ "add"
-  show (ASub t) = aTypeToInstrPrefix t ++ "sub"
-  show (AMul t) = aTypeToInstrPrefix t ++ "mul"
-  show (ADiv t) = aTypeToInstrPrefix t ++ "div"
-  show (AIfICmp rel label) = "if_icmp" ++ map toLower (show rel) ++ " " ++ label 
-  show (AIfCmp rel label) = "if" ++ map toLower (show rel) ++ " " ++ label 
+  show (AFunction t n as)                = ".method public static " ++ n 
+                                           ++ "(" ++ concatMap show as ++ ")" ++ show t
+  show AEndFunction                      = ".end method"
+  show (ALimitStack n)                   = ".limit stack " ++ show n
+  show (ALimitLocals n)                  = ".limit locals " ++ show n
+  show (ANew t)                          = "new " ++ aTypeToRef t ++ "\n"
+                                           ++ "dup\n"
+                                           ++ "invokenonvirtual " ++ aTypeToRef t ++ "/<init>()V"
+  show (AIntPush n)                      = "ldc " ++ show n 
+  show (AConst t n)                      = aTypeToInstrPrefix t ++ "const_" ++ show n
+  show ADup                              = "dup"
+  show ASwap                             = "swap"
+  show APop                              = "pop"
+  show (ALabel s)                        = s ++ ":"
+  show (AGoto s)                         = "goto " ++ s
+  show (AALoad n)                        = "aload " ++ show n
+  show (AAStore n)                       = "astore " ++ show n
+  show (AGetField t n)                   = "getfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ aTypeToUnboxedType t
+  show (APutField t n)                   = "putfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ aTypeToUnboxedType t
+  show (AAdd t)                          = aTypeToInstrPrefix t ++ "add"
+  show (ASub t)                          = aTypeToInstrPrefix t ++ "sub"
+  show (AMul t)                          = aTypeToInstrPrefix t ++ "mul"
+  show (ADiv t)                          = aTypeToInstrPrefix t ++ "div"
+  show (AIfICmp rel label)               = "if_icmp" ++ map toLower (show rel) ++ " " ++ label 
+  show (AIfCmp rel label)                = "if" ++ map toLower (show rel) ++ " " ++ label 
   show (AInvoke ret progName fName args) = "invokestatic " ++ progName ++ "/" ++ fName 
                                            ++ "(" ++ concatMap show args ++ ")"
                                            ++ show ret
-  show (AReturn AVoid) = "return"
-  show (AReturn _) = "areturn"
-  show ALOL = "LOL"
+  show (AReturn AVoid)                   = "return"
+  show (AReturn _)                       = "areturn"
+  show ALOL                              = "LOL"
 
 type Assembly = [AssemblyInstruction]
 
-data CGEnv = CGEnv { progName :: String,
-                     assembly :: Assembly,
-                     env :: Env,
+data CGEnv = CGEnv { progName     :: String,
+                     assembly     :: Assembly,
+                     env          :: Env,
                      nextLocalVar :: Int,
-                     nextLabel :: Int,
-                     localVars :: Map.Map String Int}
+                     nextLabel    :: Int,
+                     localVars    :: Map.Map String Int}
 
 getVarStore :: MonadState CGEnv m => String -> m Int
 getVarStore n = get >>= return . fromJust .  Map.lookup n . localVars
@@ -213,8 +213,9 @@ generateExpr (IRBinGreaterThan e1 e2)   = generateBinRel CodeGenerator.GT e1 e2
 generateExpr (IRBinLessEquals e1 e2)    = generateBinRel CodeGenerator.LE e1 e2
 generateExpr (IRBinGreaterEquals e1 e2) = generateBinRel CodeGenerator.GE e1 e2
 
-generateExpr (IREquals e1 e2) = generateBinRel CodeGenerator.EQ e1 e2
+generateExpr (IREquals e1 e2)    = generateBinRel CodeGenerator.EQ e1 e2
 generateExpr (IRNotEquals e1 e2) = generateBinRel CodeGenerator.NE e1 e2
+
 
 generateExpr (IRCall t n args) = do
   mapM_ generateBoxedExpr args
