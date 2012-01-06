@@ -2,10 +2,7 @@
 module CodeGenerator(AssemblyInstruction(..), 
                      Assembly, 
                      generateAssembly,
-                     showAssembly,
-                     getVarStore,
-                     generateExpr,
-                     generateDef) where
+                     showAssembly) where
 import Control.Monad
 import Control.Monad.State
 
