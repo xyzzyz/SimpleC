@@ -296,7 +296,7 @@ typeCheckExpr (CBinMul e1 e2)          = typeCheckBinOpExpr e1 e2 IRBinMul
 typeCheckExpr (CBinDiv e1 e2)          = typeCheckBinOpExpr e1 e2 IRBinDiv
 typeCheckExpr (CUnPlus e)              = do  
   t <- typeCheckExpr e
-  if cTypeOf t /                       = CInt && cTypeOf t /= CFloat 
+  if cTypeOf t /= CInt && cTypeOf t /= CFloat 
     then throwError $ TypeMismatch (cTypeOf t) CInt
     else return t
 
