@@ -44,6 +44,7 @@ data TypeError = TypeExistsError String CType
                | TypedefedStructIsNotStruct String CType
                | TypeMismatch CType CType
                | ExpectedLValue 
+               | ExpectedAddressable
                | FunctionExistsError String CFunType
                | UnexpectedNonvariableDefinition
                | WrongArgumentCount String
@@ -267,6 +268,9 @@ typeCheckStatement (CReturn e) = do
 checkLValue (CSymbol _) = return True
 checkLValue (CDereference t) = checkLValue t
 checkLValue _ = throwError ExpectedLValue
+
+checkAddressable (CSymbol _) = return True
+checkAddressable _ = throwError ExpectedAddressable
   
 typeCheckExpr (CStringLiteral s) = return $ IRStringLiteral s
 typeCheckExpr (CCharLiteral c)   = return $ IRCharLiteral c
@@ -291,8 +295,9 @@ typeCheckExpr (CDereference e) = do
     CPointerType t' -> return $ IRDereference t' t
     _           -> throwError $ TypeMismatch (cTypeOf t) (CPointerType (cTypeOf t))
     
+
 typeCheckExpr (CAddressOf e) = do
-  checkLValue e
+  checkAddressable e
   t <- typeCheckExpr e
   return $ IRAddressOf (CPointerType . cTypeOf $ t) t
 

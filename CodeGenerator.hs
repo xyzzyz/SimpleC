@@ -19,6 +19,7 @@ data AssemblyType = AInt
                   | AVoid 
                   | AChar 
                   | AReference String 
+                  | AArray AssemblyType
 
 instance Show AssemblyType where
   show AInt           = "LCInt;"
@@ -43,7 +44,7 @@ aTypeToRef (AReference _) = "CPointer"
 
 aTypeToUnboxedType AInt   = "I"
 aTypeToUnboxedType AFloat = "F"
-
+aTypeToUnboxedType (AReference _) = "[Ljava/lang/Object;"
 
 aTypeToInstrPrefix AInt           = "i"
 aTypeToInstrPrefix AFloat         = "f"
@@ -59,17 +60,22 @@ data AssemblyInstruction = AProgram String
                          | ALimitStack Int
                          | ALimitLocals Int
                          | ANew AssemblyType
+                         | ANewArray AssemblyType
                          | AIntPush Integer
                          | AConst AssemblyType Int
                          | ADup
+                         | ADupX1
                          | ASwap
                          | APop
+                         | ACheckCast AssemblyType
                          | ALabel String
                          | AGoto String
                          | AALoad Int
                          | AAStore Int
                          | AGetField AssemblyType String
                          | APutField AssemblyType String
+                         | AAALoad 
+                         | AAAStore
                          | AAdd AssemblyType
                          | ASub AssemblyType
                          | AMul AssemblyType
@@ -88,7 +94,7 @@ instance Show AssemblyInstruction where
                                            ++ "aload_0\n"
                                            ++ "invokenonvirtual java/lang/Object/<init>()V\n"
                                            ++ "return\n"
-                                           ++ ".end method\n"
+                                           ++ ".end method\n\n"
 
   show (AFunction t n as)                = ".method public static " ++ n 
                                            ++ "(" ++ concatMap show as ++ ")" ++ show t
@@ -98,17 +104,22 @@ instance Show AssemblyInstruction where
   show (ANew t)                          = "new " ++ aTypeToRef t ++ "\n"
                                            ++ "dup\n"
                                            ++ "invokenonvirtual " ++ aTypeToRef t ++ "/<init>()V"
+  show (ANewArray t)                     = "anewarray " ++ aTypeToRef t
   show (AIntPush n)                      = "ldc " ++ show n 
   show (AConst t n)                      = aTypeToInstrPrefix t ++ "const_" ++ show n
   show ADup                              = "dup"
+  show ADupX1                            = "dup_x1"
   show ASwap                             = "swap"
   show APop                              = "pop"
+  show (ACheckCast t)                    = "checkcast " ++ aTypeToRef t
   show (ALabel s)                        = s ++ ":"
   show (AGoto s)                         = "goto " ++ s
   show (AALoad n)                        = "aload " ++ show n
   show (AAStore n)                       = "astore " ++ show n
   show (AGetField t n)                   = "getfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ aTypeToUnboxedType t
   show (APutField t n)                   = "putfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ aTypeToUnboxedType t
+  show AAALoad                           = "aaload"
+  show AAAStore                          = "aastore"
   show (AAdd t)                          = aTypeToInstrPrefix t ++ "add"
   show (ASub t)                          = aTypeToInstrPrefix t ++ "sub"
   show (AMul t)                          = aTypeToInstrPrefix t ++ "mul"
@@ -157,7 +168,7 @@ countStackExpr (IRStringLiteral _)   = 1
 countStackExpr (IRCharLiteral _)     = 1
 countStackExpr (IRIntLiteral _)      = 1
 countStackExpr (IRVariable _ _)      = 1
-countStackExpr (IRAssign _ lhs rhs)  = max (countStackExpr rhs) 3
+countStackExpr (IRAssign _ lhs rhs)  = max (countStackExpr rhs) (max 5 (1 + countStackExpr lhs))
 --countStackExpr (IRPostIncrement _ e) = 1 + countStackExpr e
 countStackExpr (IRBinDot _ _ _)      = undefined
 countStackExpr (IRBinPlus _ e1 e2)   = max (countStackExpr e1) (1 + countStackExpr e2)
@@ -174,7 +185,9 @@ countStackStmt (IRExpressionStatement e)      = countStackExpr e
 countStackStmt (IRIfElse cond thn Nothing)    = max (countStackExpr cond) (countStackStmt thn)
 countStackStmt (IRIfElse cond thn (Just els)) = max (countStackExpr cond) (max (countStackStmt thn) (countStackStmt els))
 countStackStmt (IRWhile cond body)            = max (countStackExpr cond) (countStackStmt body)
-countStackStmt (IRLet _ body)                 = countStackStmt body
+countStackStmt (IRLet defs body)              = max (foldr max 0 $ zipWith countDefAdding [0..] defs) (countStackStmt body)
+  where countDefAdding n (IRVariableDefinition _ _ Nothing) = n + 1
+        countDefAdding n (IRVariableDefinition _ _ (Just e)) = n + 2 + countStackExpr e
 countStackStmt IRSkip                         = 0
 countStackStmt (IRReturn e)                   = 2 + countStackExpr e
 
@@ -187,13 +200,39 @@ generateExpr (IRVariable t name) = do
   emit $ AGetField (cTypeToAType t) "c"
   
 generateExpr (IRAssign t e1 e2) = do
-  let (IRVariable _ name) = e1
-  loc <- getVarStore name
-  emit $ AALoad loc
-  emit $ ADup
   generateExpr e2
-  emit $ APutField (cTypeToAType t) "c"
-  emit $ AAStore loc
+  emit $ ADup
+  generateAssignment e1
+  where generateAssignment (IRVariable _ name) = do
+          loc <- getVarStore name
+          emit $ AALoad loc
+          emit $ ADupX1
+          emit $ ASwap
+          emit $ APutField (cTypeToAType t) "c"
+          emit $ AAStore loc
+        generateAssignment (IRDereference t e) = do
+          generateExpr e
+          emit $ AConst AInt 0
+          emit $ AAALoad 
+          emit $ ACheckCast (cTypeToAType t)
+          emit $ ASwap
+          emit $ APutField (cTypeToAType t) "c"
+
+generateExpr (IRDereference t e) = do
+  generateExpr e
+  emit $ AConst AInt 0
+  emit $ AAALoad
+  emit $ ACheckCast (cTypeToAType t)
+
+generateExpr (IRAddressOf _ e) = do
+  let (IRVariable t name) = e
+  loc <- getVarStore name
+  emit $ AConst AInt 1
+  emit $ ANewArray (cTypeToAType t)
+  emit $ ADup
+  emit $ AConst AInt 0
+  emit $ AALoad loc
+  emit $ AAAStore  
 
   
 generateExpr (IRBinPlus  t e1 e2)   = generateBinOp AAdd t e1 e2
@@ -264,7 +303,10 @@ generateBinOp ret t e1 e2 = do
   emit $ ret t'
 
 generateStmt (IRBlock ss) = mapM_ generateStmt ss
-generateStmt (IRExpressionStatement e) = generateExpr e
+generateStmt (IRExpressionStatement e) = do
+  generateExpr e
+  emit $ APop
+
 generateStmt (IRReturn e) = do
   let t = cTypeOf e
       a = cTypeToAType t
@@ -314,12 +356,13 @@ pushDefs defs = do
         generateVarDef i (IRVariableDefinition t name e) = do
           let t' = cTypeToAType t
           emit $ ANew t'
-          emit $ ADup
-          maybeGenerateExpr e
-          emit $ APutField t' "c"
+          maybeGenerateExpr t' e
           emit $ AAStore i
-        maybeGenerateExpr Nothing = return ()
-        maybeGenerateExpr (Just e) = generateExpr e
+        maybeGenerateExpr _ Nothing = return ()
+        maybeGenerateExpr t' (Just e) = do 
+          emit $ ADup
+          generateExpr e
+          emit $ APutField t' "c"
         
 
 pushArgsDef args = do
