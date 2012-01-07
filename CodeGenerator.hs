@@ -69,6 +69,7 @@ data AssemblyInstruction = AProgram String
                          | ADupX1
                          | ASwap
                          | APop
+                         | ANop
                          | ACheckCast AssemblyType
                          | ALabel String
                          | AGoto String
@@ -115,6 +116,7 @@ instance Show AssemblyInstruction where
   show ADupX1                            = "dup_x1"
   show ASwap                             = "swap"
   show APop                              = "pop"
+  show ANop                              = "nop"
   show (ACheckCast t)                    = "checkcast " ++ aTypeToRef t
   show (ALabel s)                        = s ++ ":"
   show (AGoto s)                         = "goto " ++ s
@@ -397,10 +399,14 @@ generateStmt (IRIfElse cond thn els) = do
   generateExpr cond
   emit $ AIntPush 0
   elsL <- getNextLabel "else"
+  fi  <- getNextLabel "fi"
   emit $ AIfICmp CodeGenerator.EQ elsL
   generateStmt thn
+  emit $ AGoto fi
   emit $ ALabel elsL
   maybeEmit els
+  emit $ ALabel fi
+  emit $ ANop
   where maybeEmit Nothing = return ()
         maybeEmit (Just s) = generateStmt s
 
