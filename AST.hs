@@ -44,6 +44,7 @@ data CExpression = CStringLiteral String
                  deriving Show
                   
 data CStatement = CBlock [CStatement]
+                | CAllocate String CExpression
                 | CExpressionStatement CExpression
                 | CIfElse CExpression CStatement (Maybe CStatement)
                 | CWhile CExpression CStatement

@@ -11,7 +11,7 @@ import Text.ParserCombinators.Parsec.Expr
 import AST
                          
 primitiveTypes = ["void", "int", "float", "bool", "char"]
-keywords = ["if", "while", "for", "else", "while", "for", "return", "struct", "let", "typedef", "extern"]
+keywords = ["if", "while", "for", "else", "while", "for", "return", "struct", "let", "typedef", "extern", "allocate"]
 
 cDef = javaStyle { reservedNames = keywords ++ primitiveTypes}
 
@@ -115,6 +115,13 @@ letStatement = do
 
 blockStatement = fmap CBlock (braces (many statement))
 
+allocateStatement = do
+  reserved "allocate"
+  n <- identifier
+  size <- brackets expr
+  semi
+  return $ CAllocate n size
+
 expressionStatement = do 
   e <- expr 
   semi
@@ -157,6 +164,7 @@ returnStatement = do
   return (CReturn e)
 
 statement = blockStatement
+            <|> allocateStatement
             <|> expressionStatement
             <|> ifStatement
             <|> whileStatement

@@ -77,6 +77,7 @@ data IRDefinition = IRVariableDefinition CType String (Maybe IRExpression)
                   deriving Show
                            
 data IRStatement = IRBlock [IRStatement]
+                 | IRAllocate CType String IRExpression
                  | IRExpressionStatement IRExpression
                  | IRIfElse IRExpression IRStatement (Maybe IRStatement)
                  | IRWhile IRExpression IRStatement

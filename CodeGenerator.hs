@@ -74,6 +74,8 @@ data AssemblyInstruction = AProgram String
                          | AGoto String
                          | AALoad Int
                          | AAStore Int
+                         | AILoad Int
+                         | AIStore Int
                          | AGetField AssemblyType String
                          | APutField AssemblyType String
                          | AAALoad 
@@ -118,6 +120,8 @@ instance Show AssemblyInstruction where
   show (AGoto s)                         = "goto " ++ s
   show (AALoad n)                        = "aload " ++ show n
   show (AAStore n)                       = "astore " ++ show n
+  show (AILoad n)                        = "iload " ++ show n
+  show (AIStore n)                       = "istore " ++ show n
   show (AGetField t n)                   = "getfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ aTypeToUnboxedType t
   show (APutField t n)                   = "putfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ aTypeToUnboxedType t
   show AAALoad                           = "aaload"
@@ -183,6 +187,7 @@ countStackExpr (IRCall _ _ es)       = foldr max 0 $ zipWith countAndAdd [0..] e
 countStackExpr _                     = 666
 
 countStackStmt (IRBlock ss)                   = foldr max 0 $ map countStackStmt ss
+countStackStmt (IRAllocate _ _ e)             = max (2 + countStackExpr e) 3
 countStackStmt (IRExpressionStatement e)      = countStackExpr e
 countStackStmt (IRIfElse cond thn Nothing)    = max (countStackExpr cond) (countStackStmt thn)
 countStackStmt (IRIfElse cond thn (Just els)) = max (countStackExpr cond) (max (countStackStmt thn) (countStackStmt els))
@@ -335,6 +340,45 @@ generateBinOp ret t e1 e2 = do
   emit $ ret t'
 
 generateStmt (IRBlock ss) = mapM_ generateStmt ss
+
+generateStmt (IRAllocate t n s) = do
+  loc <- getVarStore n
+  loop <- getNextLabel "loop"
+  -- take a pointer
+  emit $ AALoad loc
+  emit $ ADup
+  -- compute array size
+  generateExpr s
+  -- save it in register
+  emit $ ADup 
+  emit $ AIStore loc
+  
+  -- allocate array
+  emit $ ANewArray (cTypeToAType t)
+  emit $ ALabel loop
+  -- copy array reference
+  emit $ ADup
+  -- decrease array index
+  emit $ AILoad loc
+  emit $ AConst AInt 1
+  emit $ ASub AInt
+  -- save it in register
+  emit $ ADup
+  emit $ AIStore loc
+  -- create new object
+  emit $ ANew (cTypeToAType t)
+  -- store it in array
+  emit $ AAAStore
+  -- compare index to 0
+  emit $ AILoad loc
+  emit $ AConst AInt 0
+  -- if not 0, loop
+  emit $ AIfICmp CodeGenerator.NE loop
+  -- else put array into pointer
+  emit $ APutField (cTypeToAType (CPointerType t)) "c"
+  -- and store it in register
+  emit $ AAStore loc
+
 generateStmt (IRExpressionStatement e) = do
   generateExpr e
   when (cTypeToAType (cTypeOf e) /= AVoid) $

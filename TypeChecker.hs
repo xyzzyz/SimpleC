@@ -232,6 +232,17 @@ ensureVariableDef _ = throwError $ UnexpectedNonvariableDefinition
 
 typeCheckStatement (CBlock stmts) = mapM typeCheckStatement stmts >>= return . IRBlock 
 
+typeCheckStatement (CAllocate name size) = do
+  t <- typeCheckExpr size
+  let t' = cTypeOf t
+  when (t' /= CInt) $
+    throwError $ TypeMismatch t' CInt
+  nt <- getVarType name
+  case nt of
+    CPointerType nt' -> return $ IRAllocate nt' name t
+    _ -> throwError $ TypeMismatch nt (CPointerType nt)
+
+
 typeCheckStatement (CExpressionStatement e) = do
   e' <- typeCheckExpr e
   return $ IRExpressionStatement e'
