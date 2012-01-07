@@ -15,6 +15,7 @@ data CDefinition = CTypedefDefinition CTypeDeclaration String
                  | CStructDefinition String [(CTypeDeclaration, String)]
                  | CVariableDefinition CTypeDeclaration String (Maybe CExpression)
                  | CFunctionDefinition CTypeDeclaration String [(CTypeDeclaration, String)] CStatement
+                 | CExternDefinition CTypeDeclaration String String [(CTypeDeclaration, String)]
                   deriving Show
 
 data CExpression = CStringLiteral String
@@ -24,6 +25,7 @@ data CExpression = CStringLiteral String
                  | CAssign CExpression CExpression
                  | CDereference CExpression
                  | CAddressOf CExpression
+                 | CArrayRef CExpression CExpression
                  | CBinDot CExpression CExpression
                  | CBinLessThan CExpression CExpression
                  | CBinGreaterThan CExpression CExpression
@@ -38,6 +40,7 @@ data CExpression = CStringLiteral String
                  | CUnPlus CExpression
                  | CUnMinus CExpression
                  | CCall String [CExpression]
+                 | CExternCall String String [CExpression]
                  deriving Show
                   
 data CStatement = CBlock [CStatement]

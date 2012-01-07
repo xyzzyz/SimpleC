@@ -1,6 +1,8 @@
 int test(int n) {
   let (*int p = &n;) {
-    *p = 123;
-    return n;
+    let (**int pp = &p;) {
+      *(*pp) = 123;
+      return n + *(*pp);
+    }
   }
 };

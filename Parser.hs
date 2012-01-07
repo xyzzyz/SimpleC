@@ -11,7 +11,7 @@ import Text.ParserCombinators.Parsec.Expr
 import AST
                          
 primitiveTypes = ["void", "int", "float", "bool", "char"]
-keywords = ["if", "while", "for", "else", "while", "for", "return", "struct", "let", "typedef"]
+keywords = ["if", "while", "for", "else", "while", "for", "return", "struct", "let", "typedef", "extern"]
 
 cDef = javaStyle { reservedNames = keywords ++ primitiveTypes}
 
@@ -30,8 +30,16 @@ identifier = P.identifier cLexer
 symbol = P.symbol cLexer
 parens = P.parens cLexer
 braces = P.braces cLexer
+brackets = P.brackets cLexer
 commaSep = P.commaSep cLexer
 semi = P.semi cLexer
+
+externFunctionCall = do 
+  m <- identifier
+  string "::"
+  n <- identifier
+  args <- parens (commaSep expr)
+  return $ CExternCall m n args
 
 functionCall = do 
   n <- identifier
@@ -40,6 +48,7 @@ functionCall = do
 
 term = (fmap CStringLiteral stringLiteral)
        <|> (fmap CCharLiteral charLiteral)
+       <|> try externFunctionCall
        <|> try functionCall
        <|> (fmap CSymbol identifier)
        <|> (fmap CIntLiteral integer)
@@ -48,7 +57,8 @@ term = (fmap CStringLiteral stringLiteral)
 
 table   = [ [binary "." (CBinDot) AssocLeft]
           , [prefix "-" CUnMinus, prefix "+" CUnPlus,
-             prefix "*" CDereference, prefix "&" CAddressOf]
+             prefix "*" CDereference, prefix "&" CAddressOf,
+             Postfix (do { ref <- brackets expr; return $ (flip CArrayRef) ref }) ]
           , [binary "*" (CBinMul) AssocLeft, binary "/" (CBinDiv) AssocLeft ]
           , [binary "+" (CBinPlus) AssocLeft, binary "-" (CBinMinus)   AssocLeft ]
           , [binary "<" (CBinLessThan) AssocLeft, binary ">" (CBinGreaterThan) AssocLeft,
@@ -188,7 +198,21 @@ functionDef = do
           n <- identifier
           return (t, n)
           
+externDef = do
+  reserved "extern"
+  t <- cType
+  m <- identifier
+  string "::"
+  n <- identifier
+  args <- parens (sepBy arg semi)
+  return $ CExternDefinition t m n args
+  where arg = do
+          t <- cType
+          n <- identifier
+          return (t, n)
+
 globalDef = typeDef
+            <|> externDef
             <|> try functionDef
             <|> variableDef
             <?> "globalDef"

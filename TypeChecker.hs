@@ -25,16 +25,20 @@ type VarEnv = [Map.Map String CType]
 
 type FunEnv = Map.Map String CFunType
 
+type ExternFunEnv = Map.Map (String, String) CFunType
+
 data Env = Env {
   typeEnv    :: TypeEnv,
   varEnv     :: VarEnv,
-  funEnv     :: FunEnv, 
+  funEnv     :: FunEnv,
+  externFunEnv :: ExternFunEnv,
   curRetType :: CType }
          deriving Show
 
 emptyEnv = Env {typeEnv = emptyTypeEnv, 
                 varEnv = [Map.empty], 
                 funEnv = Map.empty, 
+                externFunEnv = Map.empty,
                 curRetType = CVoid} 
 
 data TypeError = TypeExistsError String CType
@@ -113,6 +117,12 @@ getFunction name = do
     Nothing -> throwError $ UnboundSymbolError name
     Just t -> return t
 
+getExternFunction modul name = do
+  e <- getEnv
+  case Map.lookup (modul, name) (externFunEnv e) of
+    Nothing -> throwError $ UnboundSymbolError (modul ++ "::" ++ name)
+    Just t  -> return t
+
 ensureFunctionDoesNotExist name = do
   e <- getEnv
   case Map.lookup name (funEnv e) of
@@ -122,6 +132,10 @@ ensureFunctionDoesNotExist name = do
 putFunction name t = do
   env <- getEnv
   putEnv $ env {funEnv = Map.insert name t (funEnv env) }
+  
+putExternFunction modul name t = do
+  env <- getEnv
+  putEnv $ env { externFunEnv = Map.insert (modul, name) t (externFunEnv env) }
 
 getCurRetType = getEnv >>= return . curRetType
 setCurRetType t = do
@@ -196,7 +210,12 @@ typeCheck (CFunctionDefinition decl name args (CBlock body)) = do
   popVarEnv
   return $ Just (IRFunctionDefinition rt name (zipWith makeArg argTypes args) stmts)
   where makeArg t (_, n) = (t, n)
-          
+        
+typeCheck (CExternDefinition decl modul name args) = do          
+  rt <- declToType decl
+  argTypes <- mapM (declToType . fst) args
+  putExternFunction modul name (rt, argTypes)
+  return Nothing
 
 ensureVariableDef (CVariableDefinition decl name expr) = do
   dt <- declToType decl
@@ -266,11 +285,14 @@ typeCheckStatement (CReturn e) = do
   return $ IRReturn t
 
 checkLValue (CSymbol _) = return True
-checkLValue (CDereference t) = checkLValue t
+checkLValue (CDereference _) = return True
+checkLValue (CArrayRef _ _) = return True
 checkLValue _ = throwError ExpectedLValue
 
 checkAddressable (CSymbol _) = return True
+checkAddressable (CArrayRef _ _) = return True
 checkAddressable _ = throwError ExpectedAddressable
+
   
 typeCheckExpr (CStringLiteral s) = return $ IRStringLiteral s
 typeCheckExpr (CCharLiteral c)   = return $ IRCharLiteral c
@@ -295,6 +317,16 @@ typeCheckExpr (CAddressOf e) = do
   checkAddressable e
   t <- typeCheckExpr e
   return $ IRAddressOf (CPointerType . cTypeOf $ t) t
+
+typeCheckExpr (CArrayRef arr ref) = do
+  ref' <- typeCheckExpr ref
+  when (cTypeOf ref' /= CInt) $
+    throwError $ TypeMismatch (cTypeOf ref') CInt
+  arr' <- typeCheckExpr arr
+  case cTypeOf arr' of
+    CPointerType t -> return $ IRArrayRef t arr' ref'
+    t -> throwError $ TypeMismatch t (CPointerType t)
+    
 
 typeCheckExpr (CBinDot s f)            = undefined -- TODO
 typeCheckExpr (CBinLessThan e1 e2)     = typeCheckBinRelExpr e1 e2 IRBinLessThan
@@ -322,15 +354,22 @@ typeCheckExpr (CUnMinus e) = do
 typeCheckExpr (CCall name args) = do
   (retType, argTypes) <- getFunction name
   ts <- mapM typeCheckExpr args
-  checkArgTypes argTypes (map cTypeOf ts)
+  checkArgTypes name argTypes (map cTypeOf ts)
   return $ IRCall retType name ts
-  where checkArgTypes [] []         = return ()
-        checkArgTypes [] (_:_)      = throwError $ WrongArgumentCount name
-        checkArgTypes (_:_) []      = throwError $ WrongArgumentCount name
-        checkArgTypes (a:as) (t:ts) = do
-          if a /= t 
-            then throwError $ TypeMismatch t a
-            else checkArgTypes as ts
+                 
+typeCheckExpr (CExternCall modul name args) = do
+  (retType, argTypes) <- getExternFunction modul name
+  ts <- mapM typeCheckExpr args
+  checkArgTypes (modul ++ "::" ++ name) argTypes (map cTypeOf ts)
+  return $ IRExternCall retType modul name ts
+
+checkArgTypes name [] []         = return ()
+checkArgTypes name [] (_:_)      = throwError $ WrongArgumentCount name
+checkArgTypes name (_:_) []      = throwError $ WrongArgumentCount name
+checkArgTypes name (a:as) (t:ts) = do
+  if a /= t 
+    then throwError $ TypeMismatch t a
+    else checkArgTypes name as ts
 
 
 typeCheckBinRelExpr e1 e2 cons = do   

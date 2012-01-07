@@ -30,6 +30,7 @@ data IRExpression = IRStringLiteral String
                   | IRAssign CType IRExpression IRExpression
                   | IRDereference CType IRExpression
                   | IRAddressOf CType IRExpression
+                  | IRArrayRef CType IRExpression IRExpression
                   | IRBinDot CType IRExpression IRExpression
                   | IRBinLessThan IRExpression IRExpression
                   | IRBinGreaterThan IRExpression IRExpression
@@ -44,6 +45,7 @@ data IRExpression = IRStringLiteral String
                   | IRUnPlus CType IRExpression
                   | IRUnMinus CType IRExpression
                   | IRCall CType String [IRExpression]
+                  | IRExternCall CType String String [IRExpression]
                   deriving (Show)
 
 cTypeOf (IRStringLiteral _)      = CPointerType CChar
@@ -53,6 +55,7 @@ cTypeOf (IRVariable t _)         = t
 cTypeOf (IRAssign t _ _)         = t
 cTypeOf (IRDereference t _)      = t
 cTypeOf (IRAddressOf t _)        = t
+cTypeOf (IRArrayRef t _ _)       = t
 cTypeOf (IRBinDot t _ _)         = t
 cTypeOf (IRBinLessThan _ _)      = CBool
 cTypeOf (IRBinGreaterThan _ _)   = CBool
@@ -67,6 +70,7 @@ cTypeOf (IRBinDiv t _ _)         = t
 cTypeOf (IRUnPlus t _)           = t
 cTypeOf (IRUnMinus t _)          = t
 cTypeOf (IRCall t _ _)           = t
+cTypeOf (IRExternCall t _ _ _)   = t
 
 data IRDefinition = IRVariableDefinition CType String (Maybe IRExpression)
                   | IRFunctionDefinition CType String [(CType, String)] [IRStatement]

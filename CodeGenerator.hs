@@ -20,6 +20,7 @@ data AssemblyType = AInt
                   | AChar 
                   | AReference String 
                   | AArray AssemblyType
+                  deriving (Eq)
 
 instance Show AssemblyType where
   show AInt           = "LCInt;"
@@ -40,6 +41,7 @@ cTypeToAType (CPointerType t)   = AReference "CPointer"
 aTypeToRef AInt           = "CInt"
 aTypeToRef AFloat         = "CFloat"
 aTypeToRef AChar          = "CChar"
+aTypeToRef AVoid          = "CVoid"
 aTypeToRef (AReference _) = "CPointer"
 
 aTypeToUnboxedType AInt   = "I"
@@ -217,6 +219,13 @@ generateExpr (IRAssign t e1 e2) = do
           emit $ ACheckCast (cTypeToAType t)
           emit $ ASwap
           emit $ APutField (cTypeToAType t) "c"
+        generateAssignment (IRArrayRef t arr ref) = do
+          generateExpr arr
+          generateExpr ref
+          emit $ AAALoad
+          emit $ ACheckCast (cTypeToAType t)
+          emit $ ASwap
+          emit $ APutField (cTypeToAType t) "c"
 
 generateExpr (IRDereference t e) = do
   generateExpr e
@@ -226,17 +235,30 @@ generateExpr (IRDereference t e) = do
   emit $ AGetField (cTypeToAType t) "c"
 
 
-generateExpr (IRAddressOf _ e) = do
-  let (IRVariable t name) = e
-  loc <- getVarStore name
+generateExpr (IRAddressOf t e) = do
   emit $ AConst AInt 1
   emit $ ANewArray (cTypeToAType t)
   emit $ ADup
   emit $ AConst AInt 0
-  emit $ AALoad loc
-  emit $ AAAStore  
+  generateAddress e 
+  where generateAddress (IRVariable _ name) = do
+          loc <- getVarStore name
+          emit $ AALoad loc
+          emit $ AAAStore
+        generateAddress (IRArrayRef t arr ref) = do
+          generateExpr arr
+          generateExpr ref
+          emit $ AAALoad
+          emit $ ACheckCast (cTypeToAType t)
+          emit $ AAAStore
 
-  
+generateExpr (IRArrayRef t arr ref) = do
+  generateExpr arr
+  generateExpr ref
+  emit $ AAALoad
+  emit $ ACheckCast (cTypeToAType t)
+  emit $ AGetField (cTypeToAType t) "c"
+
 generateExpr (IRBinPlus  t e1 e2)   = generateBinOp AAdd t e1 e2
 generateExpr (IRBinMinus t e1 e2)   = generateBinOp ASub t e1 e2
 generateExpr (IRBinMul   t e1 e2)   = generateBinOp AMul t e1 e2
@@ -263,7 +285,15 @@ generateExpr (IRCall t n args) = do
   env <- get
   let pName = progName env
   emit $ AInvoke (cTypeToAType t) pName n (map (cTypeToAType . cTypeOf) args)
-  emit $ AGetField (cTypeToAType t) "c" 
+  when (cTypeToAType t /= AVoid) $
+    emit $ AGetField (cTypeToAType t) "c" 
+
+generateExpr (IRExternCall t m n args) = do
+  mapM_ generateBoxedExpr args
+  emit $ AInvoke (cTypeToAType t) m n (map (cTypeToAType . cTypeOf) args)
+  when (cTypeToAType t /= AVoid) $
+    emit $ AGetField (cTypeToAType t) "c" 
+
 
 generateExpr _ = return ()
 
@@ -307,7 +337,8 @@ generateBinOp ret t e1 e2 = do
 generateStmt (IRBlock ss) = mapM_ generateStmt ss
 generateStmt (IRExpressionStatement e) = do
   generateExpr e
-  emit $ APop
+  when (cTypeToAType (cTypeOf e) /= AVoid) $
+    emit $ APop
 
 generateStmt (IRReturn e) = do
   let t = cTypeOf e
