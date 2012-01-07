@@ -24,7 +24,6 @@ data CExpression = CStringLiteral String
                  | CAssign CExpression CExpression
                  | CDereference CExpression
                  | CAddressOf CExpression
-                 | CPostIncrement CExpression
                  | CBinDot CExpression CExpression
                  | CBinLessThan CExpression CExpression
                  | CBinGreaterThan CExpression CExpression

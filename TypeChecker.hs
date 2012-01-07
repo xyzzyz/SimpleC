@@ -284,11 +284,6 @@ typeCheckExpr (CAssign lhs rhs)  = do
     then throwError $ TypeMismatch (cTypeOf lt) (cTypeOf rt)
     else return $ IRAssign (cTypeOf rt) lt rt
 
-typeCheckExpr (CPostIncrement t) = do 
-  checkLValue t 
-  t' <- typeCheckExpr t
-  return $ IRAssign (cTypeOf t') t' (IRBinPlus (cTypeOf t') t' (IRIntLiteral 1))
-
 typeCheckExpr (CDereference e) = do
   t <- typeCheckExpr e
   case cTypeOf t of

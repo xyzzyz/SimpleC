@@ -46,7 +46,7 @@ term = (fmap CStringLiteral stringLiteral)
        <|> (parens expr)
        
 
-table   = [ [binary "." (CBinDot) AssocLeft, postfix "++" CPostIncrement]
+table   = [ [binary "." (CBinDot) AssocLeft]
           , [prefix "-" CUnMinus, prefix "+" CUnPlus,
              prefix "*" CDereference, prefix "&" CAddressOf]
           , [binary "*" (CBinMul) AssocLeft, binary "/" (CBinDiv) AssocLeft ]
@@ -74,7 +74,7 @@ simpleType = (fmap CPrimitiveTypeDeclaration (choice $ map reservedKeyword primi
            <|> (fmap CTypedefTypeDeclaration identifier)
        
 pointerType = do
-  reservedOp "*"
+  string "*"
   t <- cType
   return $ CPointerDeclaration t
   

@@ -223,6 +223,8 @@ generateExpr (IRDereference t e) = do
   emit $ AConst AInt 0
   emit $ AAALoad
   emit $ ACheckCast (cTypeToAType t)
+  emit $ AGetField (cTypeToAType t) "c"
+
 
 generateExpr (IRAddressOf _ e) = do
   let (IRVariable t name) = e
