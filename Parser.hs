@@ -47,7 +47,8 @@ term = (fmap CStringLiteral stringLiteral)
        
 
 table   = [ [binary "." (CBinDot) AssocLeft, postfix "++" CPostIncrement]
-          , [prefix "-" CUnMinus, prefix "+" CUnPlus ]
+          , [prefix "-" CUnMinus, prefix "+" CUnPlus,
+             prefix "*" CDereference, prefix "&" CAddressOf]
           , [binary "*" (CBinMul) AssocLeft, binary "/" (CBinDiv) AssocLeft ]
           , [binary "+" (CBinPlus) AssocLeft, binary "-" (CBinMinus)   AssocLeft ]
           , [binary "<" (CBinLessThan) AssocLeft, binary ">" (CBinGreaterThan) AssocLeft,

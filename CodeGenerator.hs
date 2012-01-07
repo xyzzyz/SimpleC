@@ -296,9 +296,31 @@ generateStmt (IRWhile cond body) = do
   emit $ AGoto loop
   emit $ ALabel exit
   
+generateStmt (IRLet defs body) = do
+  oldE <- pushDefs defs
+  generateStmt body
+  popDefs oldE  
 
 generateStmt _ = return ()
 
+pushDefs defs = do
+  e <- get 
+  let CGEnv { nextLocalVar = n, localVars = vs } = e
+  put $ e { nextLocalVar = n + length defs,
+            localVars = foldr insertIndexedDef vs (zip defs [n..]) }
+  zipWithM_ generateVarDef [n..] defs
+  return e
+  where insertIndexedDef ((IRVariableDefinition _ name _), i) vs = Map.insert name i vs
+        generateVarDef i (IRVariableDefinition t name e) = do
+          let t' = cTypeToAType t
+          emit $ ANew t'
+          emit $ ADup
+          maybeGenerateExpr e
+          emit $ APutField t' "c"
+          emit $ AAStore i
+        maybeGenerateExpr Nothing = return ()
+        maybeGenerateExpr (Just e) = generateExpr e
+        
 
 pushArgsDef args = do
   e <- get
@@ -307,7 +329,7 @@ pushArgsDef args = do
             localVars = foldr (uncurry Map.insert) vs (zip (map snd args) [n..]) }
   return e
 
-popArgsDef oldE = do
+popDefs oldE = do
   e <- get
   put $ e { nextLocalVar = nextLocalVar oldE, localVars = localVars oldE }
 
@@ -317,7 +339,7 @@ generateDef (IRFunctionDefinition t name args body) = do
   emit $ ALimitStack (countStackStmt (IRBlock body))
   oldE <- pushArgsDef args
   mapM_ generateStmt body
-  popArgsDef oldE
+  popDefs oldE
   emit $ AEndFunction
 
 

@@ -28,7 +28,8 @@ data IRExpression = IRStringLiteral String
                   | IRIntLiteral Integer
                   | IRVariable CType String 
                   | IRAssign CType IRExpression IRExpression
-                  | IRPostIncrement CType IRExpression
+                  | IRDereference CType IRExpression
+                  | IRAddressOf CType IRExpression
                   | IRBinDot CType IRExpression IRExpression
                   | IRBinLessThan IRExpression IRExpression
                   | IRBinGreaterThan IRExpression IRExpression
@@ -50,7 +51,8 @@ cTypeOf (IRCharLiteral _)        = CChar
 cTypeOf (IRIntLiteral _)         = CInt
 cTypeOf (IRVariable t _)         = t
 cTypeOf (IRAssign t _ _)         = t
-cTypeOf (IRPostIncrement t _)    = t
+cTypeOf (IRDereference t _)      = t
+cTypeOf (IRAddressOf t _)        = t
 cTypeOf (IRBinDot t _ _)         = t
 cTypeOf (IRBinLessThan _ _)      = CBool
 cTypeOf (IRBinGreaterThan _ _)   = CBool

@@ -43,6 +43,7 @@ data TypeError = TypeExistsError String CType
                | TypedefingCompositeType String CType
                | TypedefedStructIsNotStruct String CType
                | TypeMismatch CType CType
+               | ExpectedLValue 
                | FunctionExistsError String CFunType
                | UnexpectedNonvariableDefinition
                | WrongArgumentCount String
@@ -264,8 +265,9 @@ typeCheckStatement (CReturn e) = do
   return $ IRReturn t
 
 checkLValue (CSymbol _) = return True
---checkLValue (CPointer t) = checkLValue t
-
+checkLValue (CDereference t) = checkLValue t
+checkLValue _ = throwError ExpectedLValue
+  
 typeCheckExpr (CStringLiteral s) = return $ IRStringLiteral s
 typeCheckExpr (CCharLiteral c)   = return $ IRCharLiteral c
 typeCheckExpr (CSymbol name)     = getVarType name >>= return . ((flip IRVariable) name)
@@ -283,6 +285,17 @@ typeCheckExpr (CPostIncrement t) = do
   t' <- typeCheckExpr t
   return $ IRAssign (cTypeOf t') t' (IRBinPlus (cTypeOf t') t' (IRIntLiteral 1))
 
+typeCheckExpr (CDereference e) = do
+  t <- typeCheckExpr e
+  case cTypeOf t of
+    CPointerType t' -> return $ IRDereference t' t
+    _           -> throwError $ TypeMismatch (cTypeOf t) (CPointerType (cTypeOf t))
+    
+typeCheckExpr (CAddressOf e) = do
+  checkLValue e
+  t <- typeCheckExpr e
+  return $ IRAddressOf (CPointerType . cTypeOf $ t) t
+
 typeCheckExpr (CBinDot s f)            = undefined -- TODO
 typeCheckExpr (CBinLessThan e1 e2)     = typeCheckBinRelExpr e1 e2 IRBinLessThan
 typeCheckExpr (CBinGreaterThan e1 e2)  = typeCheckBinRelExpr e1 e2 IRBinGreaterThan
@@ -296,7 +309,7 @@ typeCheckExpr (CBinMul e1 e2)          = typeCheckBinOpExpr e1 e2 IRBinMul
 typeCheckExpr (CBinDiv e1 e2)          = typeCheckBinOpExpr e1 e2 IRBinDiv
 typeCheckExpr (CUnPlus e)              = do  
   t <- typeCheckExpr e
-  if cTypeOf t /                       = CInt && cTypeOf t /= CFloat 
+  if cTypeOf t /= CInt && cTypeOf t /= CFloat 
     then throwError $ TypeMismatch (cTypeOf t) CInt
     else return t
 
