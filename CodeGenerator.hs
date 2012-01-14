@@ -19,6 +19,7 @@ data AssemblyType = AInt
                   | AVoid 
                   | AChar 
                   | AReference String 
+                  | AJavaClass String
                   | AArray AssemblyType
                   deriving (Eq)
 
@@ -28,6 +29,8 @@ instance Show AssemblyType where
   show AVoid          = "V"
   show AChar          = "LCInt;"
   show (AReference s) = "L" ++ s ++ ";"
+  show (AJavaClass s) = "L" ++ s ++ ";"
+  show (AArray t)     = "[" ++ show t
 
 
 cTypeToAType CInt               = AInt
@@ -65,6 +68,7 @@ data AssemblyInstruction = AProgram String
                          | ANew AssemblyType
                          | ANewArray AssemblyType
                          | AIntPush Integer
+                         | AStringPush String
                          | AConst AssemblyType Int
                          | ADup
                          | ADupX1
@@ -118,6 +122,7 @@ instance Show AssemblyInstruction where
                                            ++ "invokenonvirtual " ++ aTypeToRef t ++ "/<init>()V"
   show (ANewArray t)                     = "anewarray " ++ aTypeToRef t
   show (AIntPush n)                      = "ldc " ++ show n 
+  show (AStringPush str)                 = "ldc \"" ++ str ++ "\""
   show (AConst t n)                      = aTypeToInstrPrefix t ++ "const_" ++ show n
   show ADup                              = "dup"
   show ADupX1                            = "dup_x1"
@@ -213,6 +218,10 @@ generateExpr (IRIntLiteral n) = do
 
 generateExpr (IRCharLiteral c) = do
   emit $ AIntPush (fromIntegral . ord $ c)
+
+generateExpr (IRStringLiteral str) = do
+  emit $ AStringPush str
+  emit $ AInvoke (AArray AInt) "Runtime" "string_to_null_array" [AJavaClass "java/lang/String"]
   
 generateExpr (IRVariable t name) = do
   loc <- getVarStore name
