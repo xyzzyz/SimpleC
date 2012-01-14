@@ -11,7 +11,7 @@ import Text.ParserCombinators.Parsec.Expr
 import AST
                          
 primitiveTypes = ["void", "int", "float", "bool", "char"]
-keywords = ["if", "while", "for", "else", "while", "for", "return", "struct", "let", "typedef"]
+keywords = ["if", "while", "for", "else", "while", "for", "return", "struct", "let", "typedef", "extern", "allocate"]
 
 cDef = javaStyle { reservedNames = keywords ++ primitiveTypes}
 
@@ -30,8 +30,16 @@ identifier = P.identifier cLexer
 symbol = P.symbol cLexer
 parens = P.parens cLexer
 braces = P.braces cLexer
+brackets = P.brackets cLexer
 commaSep = P.commaSep cLexer
 semi = P.semi cLexer
+
+externFunctionCall = do 
+  m <- identifier
+  string "::"
+  n <- identifier
+  args <- parens (commaSep expr)
+  return $ CExternCall m n args
 
 functionCall = do 
   n <- identifier
@@ -40,18 +48,22 @@ functionCall = do
 
 term = (fmap CStringLiteral stringLiteral)
        <|> (fmap CCharLiteral charLiteral)
+       <|> try externFunctionCall
        <|> try functionCall
        <|> (fmap CSymbol identifier)
        <|> (fmap CIntLiteral integer)
        <|> (parens expr)
        
 
-table   = [ [binary "." (CBinDot) AssocLeft, postfix "++" CPostIncrement]
-          , [prefix "-" CUnMinus, prefix "+" CUnPlus ]
+table   = [ [binary "." (CBinDot) AssocLeft]
+          , [prefix "-" CUnMinus, prefix "+" CUnPlus,
+             prefix "*" CDereference, prefix "&" CAddressOf,
+             Postfix (do { ref <- brackets expr; return $ (flip CArrayRef) ref }) ]
           , [binary "*" (CBinMul) AssocLeft, binary "/" (CBinDiv) AssocLeft ]
           , [binary "+" (CBinPlus) AssocLeft, binary "-" (CBinMinus)   AssocLeft ]
-          , [binary "<" (CBinLessThan) AssocLeft]
-          , [binary "==" (CEquals) AssocLeft]
+          , [binary "<" (CBinLessThan) AssocLeft, binary ">" (CBinGreaterThan) AssocLeft,
+             binary "<=" (CBinLessEqual) AssocLeft, binary ">=" (CBinGreaterEqual) AssocLeft]
+          , [binary "==" (CEquals) AssocLeft, binary "!=" (CNotEquals) AssocLeft]
           , [binary "=" (CAssign) AssocRight]
           ]
             
@@ -72,7 +84,7 @@ simpleType = (fmap CPrimitiveTypeDeclaration (choice $ map reservedKeyword primi
            <|> (fmap CTypedefTypeDeclaration identifier)
        
 pointerType = do
-  reservedOp "*"
+  string "*"
   t <- cType
   return $ CPointerDeclaration t
   
@@ -102,6 +114,13 @@ letStatement = do
   return $ CLet decls body
 
 blockStatement = fmap CBlock (braces (many statement))
+
+allocateStatement = do
+  reserved "allocate"
+  n <- identifier
+  size <- brackets expr
+  semi
+  return $ CAllocate n size
 
 expressionStatement = do 
   e <- expr 
@@ -145,6 +164,7 @@ returnStatement = do
   return (CReturn e)
 
 statement = blockStatement
+            <|> allocateStatement
             <|> expressionStatement
             <|> ifStatement
             <|> whileStatement
@@ -186,7 +206,21 @@ functionDef = do
           n <- identifier
           return (t, n)
           
+externDef = do
+  reserved "extern"
+  t <- cType
+  m <- identifier
+  string "::"
+  n <- identifier
+  args <- parens (sepBy arg semi)
+  return $ CExternDefinition t m n args
+  where arg = do
+          t <- cType
+          n <- identifier
+          return (t, n)
+
 globalDef = typeDef
+            <|> externDef
             <|> try functionDef
             <|> variableDef
             <?> "globalDef"

@@ -25,14 +25,21 @@ type VarEnv = [Map.Map String CType]
 
 type FunEnv = Map.Map String CFunType
 
+type ExternFunEnv = Map.Map (String, String) CFunType
+
 data Env = Env {
-  typeEnv :: TypeEnv,
-  varEnv :: VarEnv,
-  funEnv :: FunEnv, 
+  typeEnv    :: TypeEnv,
+  varEnv     :: VarEnv,
+  funEnv     :: FunEnv,
+  externFunEnv :: ExternFunEnv,
   curRetType :: CType }
          deriving Show
 
-emptyEnv = Env {typeEnv = emptyTypeEnv, varEnv = [Map.empty], funEnv = Map.empty, curRetType = CVoid} 
+emptyEnv = Env {typeEnv = emptyTypeEnv, 
+                varEnv = [Map.empty], 
+                funEnv = Map.empty, 
+                externFunEnv = Map.empty,
+                curRetType = CVoid} 
 
 data TypeError = TypeExistsError String CType
                | UnknownTypeError String
@@ -40,6 +47,8 @@ data TypeError = TypeExistsError String CType
                | TypedefingCompositeType String CType
                | TypedefedStructIsNotStruct String CType
                | TypeMismatch CType CType
+               | ExpectedLValue 
+               | ExpectedAddressable
                | FunctionExistsError String CFunType
                | UnexpectedNonvariableDefinition
                | WrongArgumentCount String
@@ -47,7 +56,7 @@ data TypeError = TypeExistsError String CType
                deriving Show
                             
 instance Error TypeError where
-  noMsg = OtherTypeError "type error occured"
+  noMsg  = OtherTypeError "type error occured"
   strMsg = OtherTypeError
   
 newtype TypeChecker a = Checker {
@@ -56,21 +65,21 @@ newtype TypeChecker a = Checker {
 
 liftChecker m = Checker (lift m)
   
-getEnv = liftChecker get
+getEnv   = liftChecker get
 putEnv e = liftChecker $ put e
 
 getType name = do
   e <- getEnv 
   case Map.lookup name (typeEnv e) of
     Nothing -> throwError (UnknownTypeError name)
-    Just t -> return t
+    Just t  -> return t
 
 
 ensureTypeDoesNotExist name = do
   e <- getEnv
   case Map.lookup name (typeEnv e) of
     Nothing -> return ()
-    Just t -> throwError $ TypeExistsError name t
+    Just t  -> throwError $ TypeExistsError name t
   
 
 putType name t = do
@@ -108,6 +117,12 @@ getFunction name = do
     Nothing -> throwError $ UnboundSymbolError name
     Just t -> return t
 
+getExternFunction modul name = do
+  e <- getEnv
+  case Map.lookup (modul, name) (externFunEnv e) of
+    Nothing -> throwError $ UnboundSymbolError (modul ++ "::" ++ name)
+    Just t  -> return t
+
 ensureFunctionDoesNotExist name = do
   e <- getEnv
   case Map.lookup name (funEnv e) of
@@ -117,6 +132,10 @@ ensureFunctionDoesNotExist name = do
 putFunction name t = do
   env <- getEnv
   putEnv $ env {funEnv = Map.insert name t (funEnv env) }
+  
+putExternFunction modul name t = do
+  env <- getEnv
+  putEnv $ env { externFunEnv = Map.insert (modul, name) t (externFunEnv env) }
 
 getCurRetType = getEnv >>= return . curRetType
 setCurRetType t = do
@@ -124,25 +143,25 @@ setCurRetType t = do
   putEnv $ e { curRetType = t }
 
 
-declToType (CPrimitiveTypeDeclaration "int") = return CInt
+declToType (CPrimitiveTypeDeclaration "int")   = return CInt
 declToType (CPrimitiveTypeDeclaration "float") = return CFloat
-declToType (CPrimitiveTypeDeclaration "bool") = return CBool
-declToType (CPrimitiveTypeDeclaration "void") = return CVoid
-declToType (CPrimitiveTypeDeclaration "char") = return CChar
+declToType (CPrimitiveTypeDeclaration "bool")  = return CBool
+declToType (CPrimitiveTypeDeclaration "void")  = return CVoid
+declToType (CPrimitiveTypeDeclaration "char")  = return CChar
 
 declToType (CTypedefTypeDeclaration name) = do
   t <- getType name
   case t of
     CTypedefType _ t -> return t
-    CSelf -> return CSelf
-    t -> throwError (TypedefingCompositeType name t)
+    CSelf            -> return CSelf
+    t                -> throwError (TypedefingCompositeType name t)
     
 declToType (CStructDeclaration name) = do
   t <- getType name
   case t of
     s@(CStructType _ _) -> return s
-    CSelf -> return CSelf
-    t -> throwError (TypedefedStructIsNotStruct name t)
+    CSelf               -> return CSelf
+    t                   -> throwError (TypedefedStructIsNotStruct name t)
 
 declToType (CPointerDeclaration decl) = do
   t <- declToType decl
@@ -191,7 +210,12 @@ typeCheck (CFunctionDefinition decl name args (CBlock body)) = do
   popVarEnv
   return $ Just (IRFunctionDefinition rt name (zipWith makeArg argTypes args) stmts)
   where makeArg t (_, n) = (t, n)
-          
+        
+typeCheck (CExternDefinition decl modul name args) = do          
+  rt <- declToType decl
+  argTypes <- mapM (declToType . fst) args
+  putExternFunction modul name (rt, argTypes)
+  return Nothing
 
 ensureVariableDef (CVariableDefinition decl name expr) = do
   dt <- declToType decl
@@ -208,6 +232,17 @@ ensureVariableDef _ = throwError $ UnexpectedNonvariableDefinition
 
 typeCheckStatement (CBlock stmts) = mapM typeCheckStatement stmts >>= return . IRBlock 
 
+typeCheckStatement (CAllocate name size) = do
+  t <- typeCheckExpr size
+  let t' = cTypeOf t
+  when (t' /= CInt) $
+    throwError $ TypeMismatch t' CInt
+  nt <- getVarType name
+  case nt of
+    CPointerType nt' -> return $ IRAllocate nt' name t
+    _ -> throwError $ TypeMismatch nt (CPointerType nt)
+
+
 typeCheckStatement (CExpressionStatement e) = do
   e' <- typeCheckExpr e
   return $ IRExpressionStatement e'
@@ -218,7 +253,7 @@ typeCheckStatement (CIfElse cond thn els) = do
     (throwError $ TypeMismatch (cTypeOf t) CBool)
   thn' <- typeCheckStatement thn
   case els of
-    Nothing -> return $ IRIfElse t thn' Nothing
+    Nothing  -> return $ IRIfElse t thn' Nothing
     Just els -> typeCheckStatement els >>= return . IRIfElse t thn' . Just
 
 typeCheckStatement (CWhile cond body) = do
@@ -261,13 +296,20 @@ typeCheckStatement (CReturn e) = do
   return $ IRReturn t
 
 checkLValue (CSymbol _) = return True
---checkLValue (CPointer t) = checkLValue t
+checkLValue (CDereference _) = return True
+checkLValue (CArrayRef _ _) = return True
+checkLValue _ = throwError ExpectedLValue
 
+checkAddressable (CSymbol _) = return True
+checkAddressable (CArrayRef _ _) = return True
+checkAddressable _ = throwError ExpectedAddressable
+
+  
 typeCheckExpr (CStringLiteral s) = return $ IRStringLiteral s
-typeCheckExpr (CCharLiteral c) = return $ IRCharLiteral c
-typeCheckExpr (CSymbol name) = getVarType name >>= return . ((flip IRVariable) name)
-typeCheckExpr (CIntLiteral i) = return $ IRIntLiteral i
-typeCheckExpr (CAssign lhs rhs) = do
+typeCheckExpr (CCharLiteral c)   = return $ IRCharLiteral c
+typeCheckExpr (CSymbol name)     = getVarType name >>= return . ((flip IRVariable) name)
+typeCheckExpr (CIntLiteral i)    = return $ IRIntLiteral i
+typeCheckExpr (CAssign lhs rhs)  = do
   lt <- typeCheckExpr lhs
   rt <- typeCheckExpr rhs
   checkLValue lhs
@@ -275,38 +317,71 @@ typeCheckExpr (CAssign lhs rhs) = do
     then throwError $ TypeMismatch (cTypeOf lt) (cTypeOf rt)
     else return $ IRAssign (cTypeOf rt) lt rt
 
-typeCheckExpr (CPostIncrement t) = do 
-  checkLValue t 
-  t' <- typeCheckExpr t
-  return $ IRAssign (cTypeOf t') t' (IRBinPlus (cTypeOf t') t' (IRIntLiteral 1))
+typeCheckExpr (CDereference e) = do
+  t <- typeCheckExpr e
+  case cTypeOf t of
+    CPointerType t' -> return $ IRDereference t' t
+    _           -> throwError $ TypeMismatch (cTypeOf t) (CPointerType (cTypeOf t))
+    
 
-typeCheckExpr (CBinDot s f) = undefined -- TODO
-typeCheckExpr (CBinLessThan e1 e2) = typeCheckBinRelExpr e1 e2 IRBinLessThan
-typeCheckExpr (CEquals e1 e2) = typeCheckBinRelExpr e1 e2 IREquals
-typeCheckExpr (CBinPlus e1 e2) = typeCheckBinOpExpr e1 e2 IRBinPlus
-typeCheckExpr (CBinMinus e1 e2) = typeCheckBinOpExpr e1 e2 IRBinMinus
-typeCheckExpr (CBinMul e1 e2) = typeCheckBinOpExpr e1 e2 IRBinMul
-typeCheckExpr (CBinDiv e1 e2) = typeCheckBinOpExpr e1 e2 IRBinDiv
-typeCheckExpr (CUnPlus e) = typeCheckUnaryNum e IRUnPlus
-typeCheckExpr (CUnMinus e) = typeCheckUnaryNum e IRUnMinus
-typeCheckExpr (CCall name args) = do
-  (retType, argTypes) <- getFunction name
-  ts <- mapM typeCheckExpr args
-  checkArgTypes argTypes (map cTypeOf ts)
-  return $ IRCall retType name ts
-  where checkArgTypes [] [] = return ()
-        checkArgTypes [] (_:_) = throwError $ WrongArgumentCount name
-        checkArgTypes (_:_) [] = throwError $ WrongArgumentCount name
-        checkArgTypes (a:as) (t:ts) = do
-          if a /= t 
-            then throwError $ TypeMismatch t a
-            else checkArgTypes as ts
+typeCheckExpr (CAddressOf e) = do
+  checkAddressable e
+  t <- typeCheckExpr e
+  return $ IRAddressOf (CPointerType . cTypeOf $ t) t
 
-typeCheckUnaryNum e cons= do
+typeCheckExpr (CArrayRef arr ref) = do
+  ref' <- typeCheckExpr ref
+  when (cTypeOf ref' /= CInt) $
+    throwError $ TypeMismatch (cTypeOf ref') CInt
+  arr' <- typeCheckExpr arr
+  case cTypeOf arr' of
+    CPointerType t -> return $ IRArrayRef t arr' ref'
+    t -> throwError $ TypeMismatch t (CPointerType t)
+    
+
+typeCheckExpr (CBinDot s f)            = undefined -- TODO
+typeCheckExpr (CBinLessThan e1 e2)     = typeCheckBinRelExpr e1 e2 IRBinLessThan
+typeCheckExpr (CBinGreaterThan e1 e2)  = typeCheckBinRelExpr e1 e2 IRBinGreaterThan
+typeCheckExpr (CBinLessEqual e1 e2)    = typeCheckBinRelExpr e1 e2 IRBinLessEquals
+typeCheckExpr (CBinGreaterEqual e1 e2) = typeCheckBinRelExpr e1 e2 IRBinGreaterEquals
+typeCheckExpr (CEquals e1 e2)          = typeCheckBinRelExpr e1 e2 IREquals
+typeCheckExpr (CNotEquals e1 e2)       = typeCheckBinRelExpr e1 e2 IRNotEquals
+typeCheckExpr (CBinPlus e1 e2)         = typeCheckBinOpExpr e1 e2 IRBinPlus
+typeCheckExpr (CBinMinus e1 e2)        = typeCheckBinOpExpr e1 e2 IRBinMinus
+typeCheckExpr (CBinMul e1 e2)          = typeCheckBinOpExpr e1 e2 IRBinMul
+typeCheckExpr (CBinDiv e1 e2)          = typeCheckBinOpExpr e1 e2 IRBinDiv
+typeCheckExpr (CUnPlus e)              = do  
   t <- typeCheckExpr e
   if cTypeOf t /= CInt && cTypeOf t /= CFloat 
     then throwError $ TypeMismatch (cTypeOf t) CInt
     else return t
+
+typeCheckExpr (CUnMinus e) = do 
+  t <- typeCheckExpr e
+  if cTypeOf t /= CInt && cTypeOf t /= CFloat 
+    then throwError $ TypeMismatch (cTypeOf t) CInt
+    else return $ IRUnMinus (cTypeOf t) t
+
+typeCheckExpr (CCall name args) = do
+  (retType, argTypes) <- getFunction name
+  ts <- mapM typeCheckExpr args
+  checkArgTypes name argTypes (map cTypeOf ts)
+  return $ IRCall retType name ts
+                 
+typeCheckExpr (CExternCall modul name args) = do
+  (retType, argTypes) <- getExternFunction modul name
+  ts <- mapM typeCheckExpr args
+  checkArgTypes (modul ++ "::" ++ name) argTypes (map cTypeOf ts)
+  return $ IRExternCall retType modul name ts
+
+checkArgTypes name [] []         = return ()
+checkArgTypes name [] (_:_)      = throwError $ WrongArgumentCount name
+checkArgTypes name (_:_) []      = throwError $ WrongArgumentCount name
+checkArgTypes name (a:as) (t:ts) = do
+  if a /= t 
+    then throwError $ TypeMismatch t a
+    else checkArgTypes name as ts
+
 
 typeCheckBinRelExpr e1 e2 cons = do   
   lt <- typeCheckExpr e1
