@@ -11,4 +11,9 @@ public class IO {
             System.out.print(ch);
         }
     }
+
+    public static void print_char(CInt c) {
+        char ch = (char) c.c;
+        System.out.print(ch);
+    }
 }

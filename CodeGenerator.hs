@@ -17,7 +17,6 @@ import TypeChecker
 data AssemblyType = AInt 
                   | AFloat 
                   | AVoid 
-                  | AChar 
                   | AReference String 
                   | AJavaClass String
                   | AArray AssemblyType
@@ -27,7 +26,6 @@ instance Show AssemblyType where
   show AInt           = "LCInt;"
   show AFloat         = "LCFloat;"
   show AVoid          = "V"
-  show AChar          = "LCInt;"
   show (AReference s) = "L" ++ s ++ ";"
   show (AJavaClass s) = "L" ++ s ++ ";"
   show (AArray t)     = "[" ++ show t
@@ -36,14 +34,13 @@ instance Show AssemblyType where
 cTypeToAType CInt               = AInt
 cTypeToAType CFloat             = AFloat
 cTypeToAType CVoid              = AVoid
-cTypeToAType CChar              = AChar
+cTypeToAType CChar              = AInt
 cTypeToAType (CTypedefType _ t) = cTypeToAType t
 cTypeToAType (CPointerType t)   = AReference "CPointer"
 
 
 aTypeToRef AInt           = "CInt"
 aTypeToRef AFloat         = "CFloat"
-aTypeToRef AChar          = "CChar"
 aTypeToRef AVoid          = "CVoid"
 aTypeToRef (AReference _) = "CPointer"
 
@@ -53,7 +50,6 @@ aTypeToUnboxedType (AReference _) = "[Ljava/lang/Object;"
 
 aTypeToInstrPrefix AInt           = "i"
 aTypeToInstrPrefix AFloat         = "f"
-aTypeToInstrPrefix AChar          = "i"
 aTypeToInstrPrefix (AReference _) = "a"
 
 data BinRel = LT | GT | LE | GE | EQ | NE
@@ -321,7 +317,7 @@ generateExpr (IRExternCall t m n args) = do
   mapM_ generateBoxedExpr args
   emit $ AInvoke (cTypeToAType t) m n (map (cTypeToAType . cTypeOf) args)
   when (cTypeToAType t /= AVoid) $
-    emit $ AGetField (cTypeToAType t) "c" 
+    emit $ AGetField (cTypeToAType t) "c"
 
 
 generateExpr _ = return ()
