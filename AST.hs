@@ -50,7 +50,7 @@ data CStatement = CBlock [CStatement]
                 | CWhile CExpression CStatement
                 | CFor (Maybe CExpression, Maybe CExpression, Maybe CExpression) CStatement
                 | CLet [CDefinition] CStatement
-                | CReturn CExpression
+                | CReturn (Maybe CExpression)
                 deriving Show
 
 type CTranslationUnit = [CDefinition]

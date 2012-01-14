@@ -57,6 +57,7 @@ data BinRel = LT | GT | LE | GE | EQ | NE
             deriving Show
 
 data AssemblyInstruction = AProgram String 
+                         | AMain String
                          | AFunction AssemblyType String [AssemblyType]
                          | AEndFunction
                          | ALimitStack Int
@@ -98,6 +99,12 @@ instance Show AssemblyInstruction where
                                            ++ ".method public <init>()V\n"
                                            ++ "aload_0\n"
                                            ++ "invokenonvirtual java/lang/Object/<init>()V\n"
+                                           ++ "return\n"
+                                           ++ ".end method\n\n"
+
+  show (AMain progName)                  = ".method public static main([Ljava/lang/String;)V\n"
+                                           ++ ".limit locals 1\n"
+                                           ++ show (AInvoke AVoid progName "$main" []) ++ "\n"
                                            ++ "return\n"
                                            ++ ".end method\n\n"
 
@@ -198,10 +205,14 @@ countStackStmt (IRLet defs body)              = max (foldr max 0 $ zipWith count
   where countDefAdding n (IRVariableDefinition _ _ Nothing) = n + 1
         countDefAdding n (IRVariableDefinition _ _ (Just e)) = n + 2 + countStackExpr e
 countStackStmt IRSkip                         = 0
-countStackStmt (IRReturn e)                   = 2 + countStackExpr e
+countStackStmt (IRReturn Nothing)             = 0
+countStackStmt (IRReturn (Just e))            = 2 + countStackExpr e
 
 generateExpr (IRIntLiteral n) = do 
   emit $ AIntPush n
+
+generateExpr (IRCharLiteral c) = do
+  emit $ AIntPush (fromIntegral . ord $ c)
   
 generateExpr (IRVariable t name) = do
   loc <- getVarStore name
@@ -286,6 +297,8 @@ generateExpr (IRBinGreaterEquals e1 e2) = generateBinRel CodeGenerator.GE e1 e2
 generateExpr (IREquals e1 e2)    = generateBinRel CodeGenerator.EQ e1 e2
 generateExpr (IRNotEquals e1 e2) = generateBinRel CodeGenerator.NE e1 e2
 
+generateExpr (IRCall t "main" args) = 
+    generateExpr (IRCall t "$main" args)
 
 generateExpr (IRCall t n args) = do
   mapM_ generateBoxedExpr args
@@ -386,7 +399,10 @@ generateStmt (IRExpressionStatement e) = do
   when (cTypeToAType (cTypeOf e) /= AVoid) $
     emit $ APop
 
-generateStmt (IRReturn e) = do
+generateStmt (IRReturn Nothing) = do
+  emit $ AReturn AVoid
+
+generateStmt (IRReturn (Just e)) = do
   let t = cTypeOf e
       a = cTypeToAType t
   emit $ ANew a
@@ -458,6 +474,12 @@ pushArgsDef args = do
 popDefs oldE = do
   e <- get
   put $ e { nextLocalVar = nextLocalVar oldE, localVars = localVars oldE }
+
+generateDef (IRFunctionDefinition t "main" args body) = do
+    generateDef (IRFunctionDefinition t "$main" args body)
+    env <- get
+    let name = progName env
+    emit $ AMain name
 
 generateDef (IRFunctionDefinition t name args body) = do
   emit $ AFunction (cTypeToAType t) name (map (cTypeToAType . fst) args)

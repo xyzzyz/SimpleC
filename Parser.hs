@@ -159,7 +159,7 @@ forStatement = do
 
 returnStatement = do
   reserved "return"
-  e <- expr
+  e <- optionMaybe expr
   semi
   return (CReturn e)
 

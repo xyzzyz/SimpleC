@@ -21,6 +21,7 @@ instance Eq CType where
   (CTypedefType _ t1) == (CTypedefType _ t2)  = t1 == t2
   (CStructType _ t1) == (CStructType _ t2)    = t1 == t2
   (CPointerType t1) == (CPointerType t2)      = t1 == t2
+  CVoid == CVoid                              = True
   _ == _                                      = False
 
 data IRExpression = IRStringLiteral String
@@ -83,7 +84,7 @@ data IRStatement = IRBlock [IRStatement]
                  | IRWhile IRExpression IRStatement
                  | IRLet [IRDefinition] IRStatement
                  | IRSkip
-                 | IRReturn IRExpression
+                 | IRReturn (Maybe IRExpression)
                  deriving Show
 
 type IRTrlanslationUnit = [IRDefinition]

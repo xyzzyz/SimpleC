@@ -53,6 +53,7 @@ data TypeError = TypeExistsError String CType
                | UnexpectedNonvariableDefinition
                | WrongArgumentCount String
                | OtherTypeError String
+               | OtherError String
                deriving Show
                             
 instance Error TypeError where
@@ -197,9 +198,11 @@ typeCheck (CVariableDefinition decl name Nothing) = do
   tt <- declToType decl
   putVarIntoCurrentVarEnv tt name
   return $ Just (IRVariableDefinition tt name Nothing)
-  
+
+
 typeCheck (CFunctionDefinition decl name args (CBlock body)) = do
   rt <- declToType decl
+  ensureCorrectTypeIfMain rt name args
   ensureFunctionDoesNotExist name
   argTypes <- mapM (declToType . fst) args
   putFunction name (rt, argTypes)
@@ -210,7 +213,11 @@ typeCheck (CFunctionDefinition decl name args (CBlock body)) = do
   popVarEnv
   return $ Just (IRFunctionDefinition rt name (zipWith makeArg argTypes args) stmts)
   where makeArg t (_, n) = (t, n)
-        
+        ensureCorrectTypeIfMain CVoid "main" [] = return ()
+        ensureCorrectTypeIfMain CVoid "main" _  = throwError $ WrongArgumentCount "main"
+        ensureCorrectTypeIfMain t "main" _      = throwError $ TypeMismatch t CVoid
+        ensureCorrectTypeIfMain _ _ _           = return ()
+
 typeCheck (CExternDefinition decl modul name args) = do          
   rt <- declToType decl
   argTypes <- mapM (declToType . fst) args
@@ -288,12 +295,18 @@ typeCheckStatement (CLet defs body) = do
   return $ IRLet defs body'
   where defToVar (IRVariableDefinition t name _) = (name, t)
   
-typeCheckStatement (CReturn e) = do
+typeCheckStatement (CReturn Nothing) = do
+  curRet <- getCurRetType
+  when (curRet /= CVoid) $
+    throwError $ TypeMismatch CVoid curRet  
+  return $ IRReturn Nothing
+
+typeCheckStatement (CReturn (Just e)) = do
   t <- typeCheckExpr e
   curRet <- getCurRetType
   when (cTypeOf t /=  curRet)
     (throwError $ TypeMismatch (cTypeOf t) curRet)
-  return $ IRReturn t
+  return $ IRReturn (Just t)
 
 checkLValue (CSymbol _) = return True
 checkLValue (CDereference _) = return True
