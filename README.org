@@ -2,5 +2,7 @@
 ** Description
    This is (or rather will be) a compiler for a simple C-like
    language. 
+** Does it work?
+   Almost.
 ** Author
    Adam Michalik <adam@michalik.es>
