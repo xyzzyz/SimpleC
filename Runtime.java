@@ -1,9 +1,13 @@
 public class Runtime {
-    public static int[] string_to_null_array(String str) {
-        int[] out = new int[str.length()+1];
-        out[str.length()] = 0;
+    public static CInt[] string_to_null_array(String str) {
+        CInt[] out = new CInt[str.length()+1];
+        CInt n = new CInt();
+        n.c = 0;
+        out[str.length()] = n;
         for(int i = 0; i < str.length(); i++) {
-            out[i] = str.codePointAt(i);
+            CInt c = new CInt();
+            c.c = str.codePointAt(i);
+            out[i] = c;
         }
         return out;
     }
