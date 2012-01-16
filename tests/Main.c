@@ -1,6 +1,11 @@
 extern void IO::print_string(*char x);
 extern void IO::print_char(char c);
 
+struct cons {
+  int car;
+  *cons cdr;
+};
+
 void main() {
   let (*char x; char c;) {
     c = 'q';

@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TupleSections #-}
 module TypeChecker(CFunType, 
                    TypeEnv,
                    VarEnv,
@@ -170,7 +171,7 @@ declToType (CPointerDeclaration decl) = do
 
 structDeftoType name fields = do
   putType name CSelf
-  (mapM fieldDeclToDef fields) >>= (return . CStructType name )
+  (mapM fieldDeclToDef fields) >>= return . (name, )
   where fieldDeclToDef (decl, varName) = do
           t <- declToType decl
           return (t, varName)
@@ -182,8 +183,9 @@ typeCheck (CTypedefDefinition decl name) = do
     
 typeCheck (CStructDefinition name fields) = do
   ensureTypeDoesNotExist name
-  structDeftoType name fields >>= putType name
-  return Nothing
+  (name', fields') <- structDeftoType name fields 
+  putType name $ CStructType name' fields'
+  return $ Just $ IRStructDefinition name' fields'
   
 typeCheck (CVariableDefinition decl name (Just expr)) = do
   tt <- declToType decl

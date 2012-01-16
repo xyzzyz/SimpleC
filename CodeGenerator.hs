@@ -56,6 +56,7 @@ data BinRel = LT | GT | LE | GE | EQ | NE
             deriving Show
 
 data AssemblyInstruction = AProgram String 
+                         | AConstructor
                          | AMain String
                          | AFunction AssemblyType String [AssemblyType]
                          | AEndFunction
@@ -78,6 +79,7 @@ data AssemblyInstruction = AProgram String
                          | AAStore Int
                          | AILoad Int
                          | AIStore Int
+                         | AField AssemblyType String
                          | AGetField AssemblyType String
                          | APutField AssemblyType String
                          | AAALoad 
@@ -94,14 +96,11 @@ data AssemblyInstruction = AProgram String
                          | ALOL
 
 instance Show AssemblyInstruction where
-  show (AProgram c)                      = ".class public " ++ c ++ "\n"
+  show (AProgram c)                      = ".class public " ++ c ++ "\n" 
                                            ++ ".super java/lang/Object\n" 
-                                           ++ ".method public <init>()V\n"
+  show AConstructor                      = ".method public <init>()V\n"
                                            ++ "aload_0\n"
                                            ++ "invokenonvirtual java/lang/Object/<init>()V\n"
-                                           ++ "return\n"
-                                           ++ ".end method\n\n"
-
   show (AMain progName)                  = ".method public static main([Ljava/lang/String;)V\n"
                                            ++ ".limit locals 1\n"
                                            ++ show (AInvoke AVoid progName "$main" []) ++ "\n"
@@ -132,6 +131,7 @@ instance Show AssemblyInstruction where
   show (AAStore n)                       = "astore " ++ show n
   show (AILoad n)                        = "iload " ++ show n
   show (AIStore n)                       = "istore " ++ show n
+  show (AField t n)                      = ".field public " ++ n ++ " " ++ show t
   show (AGetField t n)                   = "getfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ aTypeToUnboxedType t
   show (APutField t n)                   = "putfield " ++ aTypeToRef t ++ "/" ++ n ++ " " ++ aTypeToUnboxedType t
   show AAALoad                           = "aaload"
@@ -151,8 +151,11 @@ instance Show AssemblyInstruction where
 
 type Assembly = [AssemblyInstruction]
 
+type StructAssembly = (String, Assembly)
+
 data CGEnv = CGEnv { progName     :: String,
                      assembly     :: Assembly,
+                     structs      :: [StructAssembly],
                      env          :: Env,
                      nextLocalVar :: Int,
                      nextLabel    :: Int,
@@ -495,11 +498,22 @@ generateDef (IRFunctionDefinition t name args body) = do
   popDefs oldE
   emit $ AEndFunction
 
+generateDef (IRStructDefinition name fields) = do
+  e <- get
+  put e { structs = newStruct : (structs e) }
+    where newStruct = (name, [AProgram name] ++ map makeField fields ++ [AConstructor, AReturn AVoid, AEndFunction] )
+          makeField (t, fName) = AField (cTypeToAType t) fName
 
-generateAssembly :: String -> IRTrlanslationUnit -> Env -> Assembly
+generateAssembly :: String -> IRTrlanslationUnit -> Env -> (Assembly, [StructAssembly])
 generateAssembly name ir env = 
-  let (_, s) = runState (mapM_ generateDef ir) (CGEnv { progName = name, assembly = [AProgram name], env = env, nextLocalVar = 0, nextLabel = 0, localVars = Map.empty})
-  in reverse $ assembly s
+  let (_, s) = runState (mapM_ generateDef ir) (CGEnv { progName = name, 
+                                                        assembly = [AEndFunction, AReturn AVoid, AConstructor, AProgram name], 
+                                                        structs = [],
+                                                        env = env, 
+                                                        nextLocalVar = 0, 
+                                                        nextLabel = 0, 
+                                                        localVars = Map.empty})
+  in (reverse $ assembly s, structs s)
 
 showAssembly :: Assembly -> String
 showAssembly = foldMap $ (++ "\n") . show 

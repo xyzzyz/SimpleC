@@ -75,6 +75,7 @@ cTypeOf (IRExternCall t _ _ _)   = t
 
 data IRDefinition = IRVariableDefinition CType String (Maybe IRExpression)
                   | IRFunctionDefinition CType String [(CType, String)] [IRStatement]
+                  | IRStructDefinition String [(CType, String)]
                   deriving Show
                            
 data IRStatement = IRBlock [IRStatement]
