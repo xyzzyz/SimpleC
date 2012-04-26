@@ -1,8 +1,17 @@
 * SimpleC compiler
-** Description
-   This is (or rather will be) a compiler for a simple C-like
-   language. 
-** Does it work?
-   Almost.
-** Author
-   Adam Michalik <adam@michalik.es>
+** what is it?
+   this is a compiler for a simple C-like language targeting JVM
+** what is it good for?
+   if you want to see how a compiler targeting JVM *can* be written in
+   Haskell, here you go. if you want to see how this kind of compiler
+   *should* be written, then, well, let's take a sit and discuss
+   what's wrong with this code...
+** usage
+   $ ./Main tests/Main.c
+   will generate Main.class .
+** license
+   do with it whatever you want, i'll be happy if you let me know that
+   you find it interesting (i hope you do), or that you use it (wow,
+   what for?)
+** author
+   Adam Michalik <adamm@mimuw.edu.pl>
