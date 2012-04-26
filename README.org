@@ -8,6 +8,7 @@
    what's wrong with this code...
 ** usage
    $ ./Main tests/Main.c
+
    will generate Main.class .
 ** license
    do with it whatever you want, i'll be happy if you let me know that
